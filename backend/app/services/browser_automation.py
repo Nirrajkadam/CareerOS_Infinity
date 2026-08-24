@@ -42,6 +42,7 @@ class BrowserAutomationService:
         "session_expired_count": 0
     }
 
+    # 1. Correct Monster vs Foundit configurations
     PORTAL_CONFIG: Dict[str, Dict[str, Any]] = {
         "linkedin": {
             "login_url": "https://www.linkedin.com/login",
@@ -64,9 +65,9 @@ class BrowserAutomationService:
             "cookies": ["foundit_at"]
         },
         "monster": {
-            "login_url": "https://www.foundit.in/login",
-            "success_urls": ["foundit.in/dashboard"],
-            "cookies": ["foundit_at"]
+            "login_url": "https://www.monster.com/login",
+            "success_urls": ["monster.com/dashboard", "monster.com/home"],
+            "cookies": ["monster_at", "monster_user"]
         },
         "apna": {
             "login_url": "https://apna.co/login",
@@ -74,6 +75,15 @@ class BrowserAutomationService:
             "cookies": ["apna_session"]
         }
     }
+
+    @classmethod
+    async def _inc_metric(cls, key: str) -> None:
+        """
+        2. Thread-safe metrics increment protected by _session_lock.
+        """
+        async with cls._session_lock:
+            if key in cls._metrics:
+                cls._metrics[key] += 1
 
     @classmethod
     def set_emergency_stop(cls, status: bool = True) -> Dict[str, Any]:
@@ -110,7 +120,7 @@ class BrowserAutomationService:
 
         for sid in expired_ids:
             logger.info(f"BrowserAutomation: Expiring stale browser session '{sid}'")
-            cls._metrics["session_expired_count"] += 1
+            await cls._inc_metric("session_expired_count")
             await cls.close_session(sid)
 
     @classmethod
@@ -392,7 +402,7 @@ class BrowserAutomationService:
             logger.info(f"BrowserAutomation: Persistent Google Chrome window running on desktop screen for {portal}.")
             
         except Exception as e:
-            cls._metrics["browser_launch_failures"] += 1
+            await cls._inc_metric("browser_launch_failures")
             logger.error(f"BrowserAutomation: headful launch error: {e}")
             async with cls._session_lock:
                 if session_id in cls._active_sessions:
@@ -466,7 +476,7 @@ class BrowserAutomationService:
                     cls._active_sessions[session_id]["last_event"] = "LOGIN_VERIFIED"
             return {"authenticated": True, "status": "LOGIN_VERIFIED", "message": "Portal session authenticated!"}
         else:
-            cls._metrics["login_failures"] += 1
+            await cls._inc_metric("login_failures")
             return {"authenticated": False, "status": "LOGIN_REQUIRED", "message": "Please log in inside the Chrome window, then click 'I HAVE LOGGED IN'."}
 
     @classmethod
@@ -544,7 +554,7 @@ class BrowserAutomationService:
                 properties={"timestamp": now_utc}
             )
             await session.commit()
-            cls._metrics["applications_submitted"] += 1
+            await cls._inc_metric("applications_submitted")
         except Exception as db_err:
             await session.rollback()
             logger.error(f"BrowserAutomation: Database transaction error in run_auto_apply: {db_err}")
@@ -552,7 +562,6 @@ class BrowserAutomationService:
 
         now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
         async with cls._session_lock:
-            # Stored in decoupled _application_registry instead of polluting _active_sessions
             cls._application_registry[application_id] = {
                 "application_id": application_id,
                 "application_session_id": application_session_id,
