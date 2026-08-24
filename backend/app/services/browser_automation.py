@@ -4,11 +4,10 @@ import datetime
 import uuid
 import sys
 import os
+import hashlib
 from typing import Dict, Any, List, Optional, Set
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.graph_repository import PostgreSQLGraphRepository
-from app.services.credential_vault import CredentialVault
-from app.services.submission_verifier import SubmissionVerifier
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -27,12 +26,13 @@ class BrowserAutomationService:
     _active_browser_instances: Dict[str, Dict[str, Any]] = {}
     _active_sessions: Dict[str, Dict[str, Any]] = {}
     
-    # Application Submissions Registry (decoupled from portal browser sessions)
+    # Application Submissions Registry (completely decoupled lifecycle)
     _application_registry: Dict[str, Dict[str, Any]] = {}
     _application_sessions: Dict[str, str] = {}
     
-    # Re-entrancy Guard & Enterprise Lock Initialization
+    # Re-entrancy Guard & Enterprise Idempotency Tracking
     _closing_sessions: Set[str] = set()
+    _closed_sessions: Set[str] = set()
     _session_lock: Optional[asyncio.Lock] = None
     _last_runtime_event: str = "AVAILABLE_IDLE"
     _emergency_stopped: bool = False
@@ -136,12 +136,12 @@ class BrowserAutomationService:
     @classmethod
     async def close_session(cls, session_id: str):
         """
-        Proper Browser Cleanup & Thread-Safe Memory Registry Cleanup with Re-entrancy Guard.
-        Prevents recursive event listener cleanup cascades using _closing_sessions guard.
+        Idempotent Browser Cleanup.
+        Only manages Playwright browser processes & sessions. Decoupled from application tracking records.
         """
         lock = cls._get_lock()
         async with lock:
-            if session_id in cls._closing_sessions:
+            if session_id in cls._closed_sessions or session_id in cls._closing_sessions:
                 return
             cls._closing_sessions.add(session_id)
 
@@ -164,13 +164,21 @@ class BrowserAutomationService:
         finally:
             async with lock:
                 cls._closing_sessions.discard(session_id)
+                cls._closed_sessions.add(session_id)
                 cls._active_browser_instances.pop(session_id, None)
                 cls._active_sessions.pop(session_id, None)
-                cls._application_registry.pop(session_id, None)
-                for app_id, sid in list(cls._application_sessions.items()):
-                    if sid == session_id or app_id == session_id:
-                        cls._application_sessions.pop(app_id, None)
-                        cls._application_registry.pop(app_id, None)
+
+    @classmethod
+    async def cleanup_application(cls, application_id: str):
+        """
+        Independent application lifecycle management cleanup method.
+        """
+        lock = cls._get_lock()
+        async with lock:
+            app_session_id = cls._application_sessions.pop(application_id, None)
+            cls._application_registry.pop(application_id, None)
+            if app_session_id:
+                cls._application_registry.pop(app_session_id, None)
 
     @staticmethod
     def _get_profile_dir(portal: str) -> str:
@@ -307,6 +315,7 @@ class BrowserAutomationService:
         lock = cls._get_lock()
 
         async with lock:
+            cls._closed_sessions.discard(session_id)
             cls._active_sessions[session_id] = {
                 "session_id": session_id,
                 "portal": portal,
@@ -531,13 +540,15 @@ class BrowserAutomationService:
         user_node_id = f"user:{user_id}"
         
         tailored_text = ""
+        resume_hash = ""
         if optimized_resume_path and os.path.exists(optimized_resume_path):
             try:
                 ext = os.path.splitext(optimized_resume_path)[1].lower()
                 if ext == ".pdf":
                     import fitz
                     with fitz.open(optimized_resume_path) as doc:
-                        tailored_text = "".join(page.get_text() for page in doc)
+                        texts = [page.get_text() for page in doc]
+                        tailored_text = "\n".join(texts)
                 elif ext in [".docx", ".doc"]:
                     from docx import Document
                     doc = Document(optimized_resume_path)
@@ -545,6 +556,9 @@ class BrowserAutomationService:
                 else:
                     with open(optimized_resume_path, "r", encoding="utf-8", errors="ignore") as f:
                         tailored_text = f.read()
+                
+                if tailored_text:
+                    resume_hash = hashlib.sha256(tailored_text.encode("utf-8")).hexdigest()
             except Exception as read_err:
                 logger.warning(f"Could not read optimized resume for DB logging: {read_err}")
 
@@ -557,6 +571,8 @@ class BrowserAutomationService:
             "portal_url": portal_url,
             "status": "READY_TO_SUBMIT",
             "applied_at": now_utc,
+            "resume_path": optimized_resume_path or "",
+            "resume_hash": resume_hash or "",
             "tailored_resume": tailored_text,
             "logs": ["BROWSER_LAUNCH_REQUESTED: headless=false", "FORM_READY: Safe fields mapped", "READY_TO_SUBMIT: Awaiting candidate final approval"]
         }
