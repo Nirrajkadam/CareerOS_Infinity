@@ -4,14 +4,14 @@ import datetime
 import uuid
 import sys
 import os
-
-if sys.platform == 'win32':
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.graph_repository import PostgreSQLGraphRepository
 from app.services.credential_vault import CredentialVault
 from app.services.submission_verifier import SubmissionVerifier
+
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 logger = logging.getLogger("app.services.browser_automation")
 
@@ -21,17 +21,22 @@ class BrowserAutomationService:
     Playwright Browser Agent executing secure form entries on active job listings.
     Supports persistent cookie directories, headful observability, interactive logins,
     and verified submission state machines.
-    
-    RUNTIME STATES:
-    AVAILABLE_IDLE, LAUNCHING, RUNNING, PAGE_CREATED, PORTAL_CONNECTED,
-    LOGIN_REQUIRED, LOGIN_VERIFIED, FORM_READY, FILLING_FORM,
-    READY_TO_SUBMIT, SUBMITTING, SUBMITTED, SUBMISSION_VERIFIED, ERROR, CLOSED
     """
     
     _active_browser_instances: Dict[str, Dict[str, Any]] = {}
     _active_sessions: Dict[str, Dict[str, Any]] = {}
+    _application_sessions: Dict[str, str] = {}
     _last_runtime_event: str = "AVAILABLE_IDLE"
     _emergency_stopped: bool = False
+
+    PORTALS: Dict[str, str] = {
+        "linkedin": "https://www.linkedin.com/login",
+        "indeed": "https://secure.indeed.com/auth",
+        "naukri": "https://www.naukri.com/nlogin/login",
+        "foundit": "https://www.foundit.in/login",
+        "monster": "https://www.foundit.in/login",
+        "apna": "https://apna.co/login"
+    }
 
     @classmethod
     def set_emergency_stop(cls, status: bool = True) -> Dict[str, Any]:
@@ -50,6 +55,33 @@ class BrowserAutomationService:
     @classmethod
     def is_emergency_stopped(cls) -> bool:
         return cls._emergency_stopped
+
+    @classmethod
+    async def close_session(cls, session_id: str):
+        """
+        1. Proper Browser Cleanup method.
+        Closes page, context, driver, and clears active session registries.
+        """
+        inst = cls._active_browser_instances.get(session_id)
+        if not inst:
+            return
+
+        try:
+            if inst.get("page") and not inst["page"].is_closed():
+                await inst["page"].close()
+
+            if inst.get("context"):
+                await inst["context"].close()
+
+            if inst.get("driver"):
+                await inst["driver"].stop()
+
+            logger.info(f"BrowserAutomation: Successfully closed session '{session_id}'")
+        except Exception as e:
+            logger.warning(f"BrowserAutomation: Cleanup error for session '{session_id}': {e}")
+        finally:
+            cls._active_browser_instances.pop(session_id, None)
+            cls._active_sessions.pop(session_id, None)
 
     @staticmethod
     def _get_profile_dir(portal: str) -> str:
@@ -112,9 +144,6 @@ class BrowserAutomationService:
             active_session = list(cls._active_sessions.values())[-1]
             
         is_running = False
-        is_connected = False
-        page_url = "about:blank"
-        
         if active_session:
             session_id = active_session.get("session_id")
             inst = cls._active_browser_instances.get(session_id)
@@ -123,8 +152,6 @@ class BrowserAutomationService:
                     page = inst["page"]
                     if not page.is_closed():
                         is_running = True
-                        is_connected = True
-                        page_url = page.url
                 except Exception:
                     pass
 
@@ -136,9 +163,12 @@ class BrowserAutomationService:
 
         return {
             "mode": active_session.get("mode", "LIVE") if active_session else "LIVE",
-            "headless": False,  # STRICT INVARIANT: Always False for LIVE candidate mode
+            "headless": False,
             "browser": "Chromium (Google Chrome)" if chrome_path else "Chromium",
             "process": "RUNNING" if is_running else "STOPPED",
+            "page": "CREATED" if is_running else "NOT_CREATED",
+            "authentication": active_session.get("authentication_status", "LOGIN_REQUIRED") if active_session else "LOGIN_REQUIRED",
+            "browser_state": runtime_state,
             "emergency_stopped": cls._emergency_stopped,
             "active_profiles": active_profiles
         }
@@ -159,17 +189,9 @@ class BrowserAutomationService:
 
         session_id = f"session_{portal.lower().strip()}"
 
-        # Close any old stale background instance for this portal session first
+        # Close any old stale background instance first
         if session_id in cls._active_browser_instances:
-            try:
-                old_inst = cls._active_browser_instances.pop(session_id, None)
-                if old_inst:
-                    if old_inst.get("page") and not old_inst["page"].is_closed():
-                        await old_inst["page"].close()
-                    if old_inst.get("context"):
-                        await old_inst["context"].close()
-            except Exception as close_err:
-                logger.warning(f"BrowserAutomation: cleanup old instance warning: {close_err}")
+            await cls.close_session(session_id)
 
         logger.info(f"BrowserAutomation: BROWSER_LAUNCH_REQUESTED: headless=false portal={portal}")
         cls._last_runtime_event = "BROWSER_LAUNCH_REQUESTED (headless=false)"
@@ -232,6 +254,9 @@ class BrowserAutomationService:
                         kwargs.pop("executable_path")
                     context = await p_driver.chromium.launch_persistent_context(**kwargs)
             
+            # 8. Add Browser Crash / Closure Event Listener
+            context.on("close", lambda: logger.warning(f"BrowserAutomation: Context closed by user for session {session_id}"))
+
             logger.info("BrowserAutomation: CONTEXT_CREATED")
             cls._active_sessions[session_id]["context_created"] = True
             cls._active_sessions[session_id]["last_event"] = "CONTEXT_CREATED"
@@ -242,18 +267,17 @@ class BrowserAutomationService:
             cls._active_sessions[session_id]["state"] = "PAGE_CREATED"
             cls._active_sessions[session_id]["last_event"] = "PAGE_CREATED"
             
+            # 9. Create Portal Config
             p_lower = portal.lower().strip()
-            target_url = "https://google.com"
-            if "linkedin" in p_lower:
-                target_url = "https://www.linkedin.com/login"
-            elif "indeed" in p_lower:
-                target_url = "https://secure.indeed.com/auth"
-            elif "naukri" in p_lower:
-                target_url = "https://www.naukri.com/nlogin/login"
-            elif "foundit" in p_lower or "monster" in p_lower:
-                target_url = "https://www.foundit.in/login"
+            target_url = cls.PORTALS.get(p_lower, "https://google.com")
                 
-            await page.goto(target_url)
+            # 3. Add Timeout & wait_until to page.goto()
+            await page.goto(
+                target_url,
+                wait_until="domcontentloaded",
+                timeout=60000
+            )
+
             cls._active_sessions[session_id]["current_url"] = target_url
             cls._active_sessions[session_id]["state"] = "PORTAL_CONNECTED"
             cls._active_sessions[session_id]["last_event"] = "PORTAL_CONNECTED"
@@ -277,24 +301,46 @@ class BrowserAutomationService:
     @classmethod
     async def verify_active_session_login(cls, portal: str) -> Dict[str, Any]:
         """
-        Re-checks page URL and DOM cookies inside active Chrome session to confirm authentication state.
-        Transitions state from LOGIN_REQUIRED -> LOGIN_VERIFIED.
+        2. Cookie-Based Login Verification
+        Checks actual cookies in active browser context instead of naive password input DOM count.
         """
         session_id = f"session_{portal.lower().strip()}"
         inst = cls._active_browser_instances.get(session_id)
-        if not inst or not inst.get("page") or inst["page"].is_closed():
+        if not inst or not inst.get("page"):
             return {"authenticated": False, "status": "LOGIN_REQUIRED", "notice": "Browser window is closed or not connected."}
             
         page = inst["page"]
+
+        # 8. Add Browser Crash Detection
+        if page.is_closed():
+            return {"authenticated": False, "status": "LOGIN_REQUIRED", "notice": "Browser was closed by user."}
+
         url = page.url
-        
+        p_lower = portal.lower().strip()
+
+        try:
+            cookies = await page.context.cookies()
+        except Exception as cookie_err:
+            logger.warning(f"BrowserAutomation: Error fetching context cookies: {cookie_err}")
+            cookies = []
+
         authenticated = False
-        if "linkedin.com/feed" in url or "linkedin.com/in" in url or "naukri.com/mnjuser" in url or "indeed.com/myjobs" in url:
-            authenticated = True
+
+        if "linkedin" in p_lower:
+            linkedin_cookies = ["li_at", "JSESSIONID"]
+            authenticated = any(c.get("name") in linkedin_cookies for c in cookies) or ("linkedin.com/feed" in url or "linkedin.com/in" in url)
+        elif "naukri" in p_lower:
+            naukri_cookies = ["nauk_at", "naukri_user", "nk_auth", "nLog"]
+            authenticated = any(c.get("name") in naukri_cookies for c in cookies) or ("naukri.com/mnjuser" in url or "naukri.com/homepage" in url)
+        elif "indeed" in p_lower:
+            indeed_cookies = ["surround", "CTK", "PPID"]
+            authenticated = any(c.get("name") in indeed_cookies for c in cookies) or ("indeed.com/myjobs" in url)
         else:
-            login_inputs = await page.query_selector_all('input[type="password"]')
-            if len(login_inputs) == 0:
-                authenticated = True
+            try:
+                login_inputs = await page.query_selector_all('input[type="password"]')
+                authenticated = len(login_inputs) == 0
+            except Exception:
+                authenticated = False
 
         if authenticated:
             if session_id in cls._active_sessions:
@@ -315,57 +361,73 @@ class BrowserAutomationService:
         portal_url: str,
         optimized_resume_path: str
     ) -> str:
+        """
+        4. & 6. & 7. Clean session usage, session mapping, and robust PDF/DOCX/TXT resume reading.
+        """
         if cls._emergency_stopped:
             raise RuntimeError("Emergency Stop is active. Cannot execute auto apply.")
 
         application_id = str(uuid.uuid4())
+        session_id = f"app_{application_id[:8]}"
+        
+        # 6. Add Session Mapping
+        cls._application_sessions[application_id] = session_id
         node_id = f"application:{application_id}"
         
         logger.info(f"BrowserAutomation: BROWSER_LAUNCH_REQUESTED (headless=false) app={application_id} role={role} @ {company}")
         cls._last_runtime_event = "BROWSER_LAUNCH_REQUESTED (headless=false)"
         
-        from app.core.database import AsyncSessionLocal
+        # 4. Use passed session directly
+        graph_repo = PostgreSQLGraphRepository(session)
+        user_node_id = f"user:{user_id}"
         
-        async with AsyncSessionLocal() as bg_session:
-            graph_repo = PostgreSQLGraphRepository(bg_session)
-            user_node_id = f"user:{user_id}"
-            
-            tailored_text = ""
-            if optimized_resume_path and os.path.exists(optimized_resume_path):
-                try:
-                    with open(optimized_resume_path, "r", encoding="utf-8") as f:
+        # 7. Fix Resume Reading (PDF, DOCX, TXT)
+        tailored_text = ""
+        if optimized_resume_path and os.path.exists(optimized_resume_path):
+            try:
+                ext = os.path.splitext(optimized_resume_path)[1].lower()
+                if ext == ".pdf":
+                    import fitz
+                    doc = fitz.open(optimized_resume_path)
+                    tailored_text = "".join(page.get_text() for page in doc)
+                elif ext in [".docx", ".doc"]:
+                    from docx import Document
+                    doc = Document(optimized_resume_path)
+                    tailored_text = "\n".join(p.text for p in doc.paragraphs)
+                else:
+                    with open(optimized_resume_path, "r", encoding="utf-8", errors="ignore") as f:
                         tailored_text = f.read()
-                except Exception as read_err:
-                    logger.warning(f"Could not read optimized resume for DB logging: {read_err}")
+            except Exception as read_err:
+                logger.warning(f"Could not read optimized resume for DB logging: {read_err}")
 
-            properties = {
-                "id": application_id,
-                "company": company,
-                "role": role,
-                "portal_url": portal_url,
-                "status": "READY_TO_SUBMIT",
-                "applied_at": datetime.datetime.utcnow().isoformat(),
-                "tailored_resume": tailored_text,
-                "logs": ["BROWSER_LAUNCH_REQUESTED: headless=false", "FORM_READY: Safe fields mapped", "READY_TO_SUBMIT: Awaiting candidate final approval"]
-            }
-            
-            await graph_repo.add_entity_node(
-                node_id=node_id,
-                entity_type="APPLICATION",
-                properties=properties
-            )
-            
-            await graph_repo.add_relationship(
-                source_id=user_node_id,
-                target_id=node_id,
-                relation_type="HAS_APPLICATION",
-                properties={"timestamp": datetime.datetime.utcnow().isoformat()}
-            )
-            await bg_session.commit()
+        properties = {
+            "id": application_id,
+            "company": company,
+            "role": role,
+            "portal_url": portal_url,
+            "status": "READY_TO_SUBMIT",
+            "applied_at": datetime.datetime.utcnow().isoformat(),
+            "tailored_resume": tailored_text,
+            "logs": ["BROWSER_LAUNCH_REQUESTED: headless=false", "FORM_READY: Safe fields mapped", "READY_TO_SUBMIT: Awaiting candidate final approval"]
+        }
+        
+        await graph_repo.add_entity_node(
+            node_id=node_id,
+            entity_type="APPLICATION",
+            properties=properties
+        )
+        
+        await graph_repo.add_relationship(
+            source_id=user_node_id,
+            target_id=node_id,
+            relation_type="HAS_APPLICATION",
+            properties={"timestamp": datetime.datetime.utcnow().isoformat()}
+        )
+        await session.commit()
 
-        session_id = f"app_{application_id[:8]}"
         cls._active_sessions[session_id] = {
             "session_id": session_id,
+            "application_id": application_id,
             "state": "READY_TO_SUBMIT",
             "mode": "LIVE",
             "process_running": True,
