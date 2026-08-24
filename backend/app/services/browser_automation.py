@@ -159,16 +159,17 @@ class BrowserAutomationService:
 
         session_id = f"session_{portal.lower().strip()}"
 
-        # Re-use active open window if already running
+        # Close any old stale background instance for this portal session first
         if session_id in cls._active_browser_instances:
-            inst = cls._active_browser_instances[session_id]
-            if inst.get("page") and not inst["page"].is_closed():
-                logger.info(f"BrowserAutomation: Reusing existing active Chrome window for {portal}")
-                try:
-                    await inst["page"].bring_to_front()
-                    return
-                except Exception:
-                    pass
+            try:
+                old_inst = cls._active_browser_instances.pop(session_id, None)
+                if old_inst:
+                    if old_inst.get("page") and not old_inst["page"].is_closed():
+                        await old_inst["page"].close()
+                    if old_inst.get("context"):
+                        await old_inst["context"].close()
+            except Exception as close_err:
+                logger.warning(f"BrowserAutomation: cleanup old instance warning: {close_err}")
 
         logger.info(f"BrowserAutomation: BROWSER_LAUNCH_REQUESTED: headless=false portal={portal}")
         cls._last_runtime_event = "BROWSER_LAUNCH_REQUESTED (headless=false)"
