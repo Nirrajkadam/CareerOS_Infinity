@@ -23,9 +23,14 @@ class BrowserAutomationService:
     and verified submission state machines.
     """
     
+    # Portal Browser Playwright Instances & State
     _active_browser_instances: Dict[str, Dict[str, Any]] = {}
     _active_sessions: Dict[str, Dict[str, Any]] = {}
+    
+    # Application Submissions Registry (decoupled from portal browser sessions)
+    _application_registry: Dict[str, Dict[str, Any]] = {}
     _application_sessions: Dict[str, str] = {}
+    
     _session_lock: asyncio.Lock = asyncio.Lock()
     _last_runtime_event: str = "AVAILABLE_IDLE"
     _emergency_stopped: bool = False
@@ -91,7 +96,7 @@ class BrowserAutomationService:
     @classmethod
     async def clean_expired_sessions(cls, max_age_hours: int = 12) -> None:
         """
-        Cleans stale sessions older than max_age_hours from memory registries.
+        Cleans stale portal browser sessions older than max_age_hours from memory registries.
         """
         now = datetime.datetime.now(datetime.timezone.utc).timestamp()
         max_age_sec = max_age_hours * 3600
@@ -104,7 +109,7 @@ class BrowserAutomationService:
                     expired_ids.append(sid)
 
         for sid in expired_ids:
-            logger.info(f"BrowserAutomation: Expiring stale session '{sid}'")
+            logger.info(f"BrowserAutomation: Expiring stale browser session '{sid}'")
             cls._metrics["session_expired_count"] += 1
             await cls.close_session(sid)
 
@@ -126,16 +131,18 @@ class BrowserAutomationService:
                 if inst.get("driver"):
                     await inst["driver"].stop()
 
-                logger.info(f"BrowserAutomation: Successfully closed session '{session_id}'")
+                logger.info(f"BrowserAutomation: Successfully closed browser session '{session_id}'")
             except Exception as e:
                 logger.warning(f"BrowserAutomation: Cleanup error for session '{session_id}': {e}")
 
         async with cls._session_lock:
             cls._active_browser_instances.pop(session_id, None)
             cls._active_sessions.pop(session_id, None)
+            cls._application_registry.pop(session_id, None)
             for app_id, sid in list(cls._application_sessions.items()):
-                if sid == session_id:
+                if sid == session_id or app_id == session_id:
                     cls._application_sessions.pop(app_id, None)
+                    cls._application_registry.pop(app_id, None)
 
     @staticmethod
     def _get_profile_dir(portal: str) -> str:
@@ -273,6 +280,7 @@ class BrowserAutomationService:
         async with cls._session_lock:
             cls._active_sessions[session_id] = {
                 "session_id": session_id,
+                "portal": portal,
                 "state": "LAUNCHING",
                 "mode": "LIVE",
                 "process_running": True,
@@ -332,7 +340,7 @@ class BrowserAutomationService:
                         kwargs.pop("executable_path")
                     context = await p_driver.chromium.launch_persistent_context(**kwargs)
             
-            # Critical Fix: Thread-safe Browser Close Event callback via close_session
+            # Thread-safe Browser Close Event callback via close_session
             context.on("close", lambda: asyncio.create_task(cls.close_session(session_id)))
 
             logger.info("BrowserAutomation: CONTEXT_CREATED")
@@ -472,16 +480,16 @@ class BrowserAutomationService:
         optimized_resume_path: str
     ) -> str:
         """
-        Transaction Rollback & Thread-Safe Application Mapping with Telemetry Metrics.
+        Decoupled Application Registry tracking submission metadata independently from Playwright portal sessions.
         """
         if cls._emergency_stopped:
             raise RuntimeError("Emergency Stop is active. Cannot execute auto apply.")
 
         application_id = str(uuid.uuid4())
-        session_id = f"app_{application_id[:8]}"
+        application_session_id = f"app_{application_id[:8]}"
         
         async with cls._session_lock:
-            cls._application_sessions[application_id] = session_id
+            cls._application_sessions[application_id] = application_session_id
 
         node_id = f"application:{application_id}"
         
@@ -544,18 +552,16 @@ class BrowserAutomationService:
 
         now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
         async with cls._session_lock:
-            cls._active_sessions[session_id] = {
-                "session_id": session_id,
+            # Stored in decoupled _application_registry instead of polluting _active_sessions
+            cls._application_registry[application_id] = {
                 "application_id": application_id,
+                "application_session_id": application_session_id,
+                "company": company,
+                "role": role,
+                "portal_url": portal_url,
                 "state": "READY_TO_SUBMIT",
                 "mode": "LIVE",
-                "process_running": True,
-                "context_created": True,
-                "page_created": True,
-                "page_closed": False,
-                "current_url": portal_url,
                 "authentication_status": "LOGIN_VERIFIED",
-                "last_event": "READY_TO_SUBMIT",
                 "created_at": now_ts,
                 "last_seen": now_ts
             }
