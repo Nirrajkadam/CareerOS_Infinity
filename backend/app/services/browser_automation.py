@@ -30,13 +30,44 @@ class BrowserAutomationService:
     _last_runtime_event: str = "AVAILABLE_IDLE"
     _emergency_stopped: bool = False
 
-    PORTALS: Dict[str, str] = {
-        "linkedin": "https://www.linkedin.com/login",
-        "indeed": "https://secure.indeed.com/auth",
-        "naukri": "https://www.naukri.com/nlogin/login",
-        "foundit": "https://www.foundit.in/login",
-        "monster": "https://www.foundit.in/login",
-        "apna": "https://apna.co/login"
+    _metrics: Dict[str, int] = {
+        "applications_submitted": 0,
+        "login_failures": 0,
+        "browser_launch_failures": 0,
+        "session_expired_count": 0
+    }
+
+    PORTAL_CONFIG: Dict[str, Dict[str, Any]] = {
+        "linkedin": {
+            "login_url": "https://www.linkedin.com/login",
+            "success_urls": ["linkedin.com/feed", "linkedin.com/in/", "linkedin.com/mynetwork"],
+            "cookies": ["li_at", "JSESSIONID"]
+        },
+        "naukri": {
+            "login_url": "https://www.naukri.com/nlogin/login",
+            "success_urls": ["naukri.com/mnjuser", "naukri.com/homepage"],
+            "cookies": ["nauk_at", "naukri_user", "nk_auth", "nLog"]
+        },
+        "indeed": {
+            "login_url": "https://secure.indeed.com/auth",
+            "success_urls": ["indeed.com/myjobs", "indeed.com/account"],
+            "cookies": ["surround", "CTK", "PPID"]
+        },
+        "foundit": {
+            "login_url": "https://www.foundit.in/login",
+            "success_urls": ["foundit.in/dashboard"],
+            "cookies": ["foundit_at"]
+        },
+        "monster": {
+            "login_url": "https://www.foundit.in/login",
+            "success_urls": ["foundit.in/dashboard"],
+            "cookies": ["foundit_at"]
+        },
+        "apna": {
+            "login_url": "https://apna.co/login",
+            "success_urls": ["apna.co/dashboard"],
+            "cookies": ["apna_session"]
+        }
     }
 
     @classmethod
@@ -60,7 +91,6 @@ class BrowserAutomationService:
     @classmethod
     async def clean_expired_sessions(cls, max_age_hours: int = 12) -> None:
         """
-        5. Missing Session Expiration
         Cleans stale sessions older than max_age_hours from memory registries.
         """
         now = datetime.datetime.now(datetime.timezone.utc).timestamp()
@@ -75,12 +105,13 @@ class BrowserAutomationService:
 
         for sid in expired_ids:
             logger.info(f"BrowserAutomation: Expiring stale session '{sid}'")
+            cls._metrics["session_expired_count"] += 1
             await cls.close_session(sid)
 
     @classmethod
     async def close_session(cls, session_id: str):
         """
-        1. & 2. Proper Browser Cleanup & Thread-Safe Memory Registry Cleanup.
+        Proper Browser Cleanup & Thread-Safe Memory Registry Cleanup.
         Closes page, context, driver, and clears active session & application registries under lock.
         """
         inst = cls._active_browser_instances.get(session_id)
@@ -99,7 +130,6 @@ class BrowserAutomationService:
             except Exception as e:
                 logger.warning(f"BrowserAutomation: Cleanup error for session '{session_id}': {e}")
 
-        # 2. Race Condition Prevention under Lock
         async with cls._session_lock:
             cls._active_browser_instances.pop(session_id, None)
             cls._active_sessions.pop(session_id, None)
@@ -128,7 +158,8 @@ class BrowserAutomationService:
     @staticmethod
     def _get_chrome_executable() -> Optional[str]:
         """
-        4. Expanded Chrome/Chromium Path Search (Chrome, Edge, Brave, Vivaldi).
+        Expanded Chrome/Chromium Path Search (Chrome, Edge, Brave, Vivaldi).
+        Returns None if not found, allowing Playwright to fall back to built-in Chromium.
         """
         local_app_data = os.environ.get("LOCALAPPDATA", "")
         program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
@@ -167,7 +198,7 @@ class BrowserAutomationService:
     @classmethod
     def get_browser_diagnostics(cls, portal: Optional[str] = "linkedin") -> Dict[str, Any]:
         """
-        Returns real-time safe browser runtime diagnostics without exposing secrets.
+        Returns real-time safe browser runtime diagnostics and metrics without exposing secrets.
         """
         chrome_path = cls._get_chrome_executable()
         base_dir = os.path.join(os.getcwd(), "chrome_profiles")
@@ -206,7 +237,8 @@ class BrowserAutomationService:
             "authentication": active_session.get("authentication_status", "LOGIN_REQUIRED") if active_session else "LOGIN_REQUIRED",
             "browser_state": runtime_state,
             "emergency_stopped": cls._emergency_stopped,
-            "active_profiles": active_profiles
+            "active_profiles": active_profiles,
+            "metrics": dict(cls._metrics)
         }
 
     @classmethod
@@ -223,12 +255,10 @@ class BrowserAutomationService:
         if cls._emergency_stopped:
             raise RuntimeError("Emergency Stop is currently active. Resume automation before launching browser.")
 
-        # Clean expired sessions before launching new ones
         await cls.clean_expired_sessions(max_age_hours=12)
 
         session_id = f"session_{portal.lower().strip()}"
 
-        # Close any old stale background instance first
         if session_id in cls._active_browser_instances:
             await cls.close_session(session_id)
 
@@ -240,7 +270,6 @@ class BrowserAutomationService:
         
         now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
-        # 2. Shared Dict Update under Lock
         async with cls._session_lock:
             cls._active_sessions[session_id] = {
                 "session_id": session_id,
@@ -303,16 +332,8 @@ class BrowserAutomationService:
                         kwargs.pop("executable_path")
                     context = await p_driver.chromium.launch_persistent_context(**kwargs)
             
-            # Browser Close Event updates session state
-            def _on_context_close():
-                logger.warning(f"BrowserAutomation: Context closed by user for session '{session_id}'")
-                if session_id in cls._active_sessions:
-                    cls._active_sessions[session_id]["state"] = "CLOSED"
-                    cls._active_sessions[session_id]["process_running"] = False
-                    cls._active_sessions[session_id]["last_event"] = "CLOSED"
-                cls._active_browser_instances.pop(session_id, None)
-
-            context.on("close", lambda: _on_context_close())
+            # Critical Fix: Thread-safe Browser Close Event callback via close_session
+            context.on("close", lambda: asyncio.create_task(cls.close_session(session_id)))
 
             logger.info("BrowserAutomation: CONTEXT_CREATED")
             async with cls._session_lock:
@@ -329,9 +350,9 @@ class BrowserAutomationService:
                     cls._active_sessions[session_id]["last_event"] = "PAGE_CREATED"
             
             p_lower = portal.lower().strip()
-            target_url = cls.PORTALS.get(p_lower, "https://google.com")
+            portal_cfg = cls.PORTAL_CONFIG.get(p_lower, {"login_url": "https://google.com"})
+            target_url = portal_cfg.get("login_url", "https://google.com")
                 
-            # Add Retry Logic (3 attempts) + Timeout & wait_until to page.goto()
             for attempt in range(3):
                 try:
                     await page.goto(
@@ -354,7 +375,6 @@ class BrowserAutomationService:
                     cls._active_sessions[session_id]["authentication_status"] = "LOGIN_REQUIRED"
                     cls._active_sessions[session_id]["last_seen"] = datetime.datetime.now(datetime.timezone.utc).timestamp()
             
-            # Store instance so window stays OPEN on desktop display
             async with cls._session_lock:
                 cls._active_browser_instances[session_id] = {
                     "driver": p_driver,
@@ -364,13 +384,13 @@ class BrowserAutomationService:
             logger.info(f"BrowserAutomation: Persistent Google Chrome window running on desktop screen for {portal}.")
             
         except Exception as e:
+            cls._metrics["browser_launch_failures"] += 1
             logger.error(f"BrowserAutomation: headful launch error: {e}")
             async with cls._session_lock:
                 if session_id in cls._active_sessions:
                     cls._active_sessions[session_id]["state"] = "ERROR"
                     cls._active_sessions[session_id]["last_event"] = f"ERROR ({e})"
             
-            # 1. Potential Playwright Resource Leak Fix
             if p_driver:
                 try:
                     await p_driver.stop()
@@ -382,8 +402,8 @@ class BrowserAutomationService:
     @classmethod
     async def verify_active_session_login(cls, portal: str) -> Dict[str, Any]:
         """
-        1. & 3. Robust Cookie & URL Verification
-        Verifies exact portal authenticated pages (e.g. linkedin.com/feed or /in/) with valid session cookies.
+        Robust Cookie & URL Verification using PORTAL_CONFIG dictionary.
+        Checks both required session cookies and target URL match together.
         """
         session_id = f"session_{portal.lower().strip()}"
         inst = cls._active_browser_instances.get(session_id)
@@ -404,25 +424,20 @@ class BrowserAutomationService:
             logger.warning(f"BrowserAutomation: Error fetching context cookies: {cookie_err}")
             cookies = []
 
-        authenticated = False
+        cfg = cls.PORTAL_CONFIG.get(p_lower, {
+            "login_url": "https://google.com",
+            "success_urls": [],
+            "cookies": []
+        })
 
-        # 1. Fix LinkedIn Authentication Logic Bug
-        if "linkedin" in p_lower:
-            linkedin_cookies = ["li_at", "JSESSIONID"]
-            has_cookie = any(c.get("name") in linkedin_cookies for c in cookies)
-            authenticated = has_cookie and (
-                "linkedin.com/feed" in url
-                or "linkedin.com/in/" in url
-                or "linkedin.com/mynetwork" in url
-            )
-        elif "naukri" in p_lower:
-            naukri_cookies = ["nauk_at", "naukri_user", "nk_auth", "nLog"]
-            has_cookie = any(c.get("name") in naukri_cookies for c in cookies)
-            authenticated = has_cookie and ("naukri.com/mnjuser" in url or "naukri.com/homepage" in url)
-        elif "indeed" in p_lower:
-            indeed_cookies = ["surround", "CTK", "PPID"]
-            has_cookie = any(c.get("name") in indeed_cookies for c in cookies)
-            authenticated = has_cookie and ("indeed.com/myjobs" in url or "indeed.com/account" in url)
+        expected_cookies = cfg.get("cookies", [])
+        expected_urls = cfg.get("success_urls", [])
+
+        authenticated = False
+        if expected_cookies and expected_urls:
+            has_cookie = any(c.get("name") in expected_cookies for c in cookies)
+            has_url = any(u in url for u in expected_urls)
+            authenticated = has_cookie and has_url
         else:
             try:
                 login_inputs = await page.query_selector_all('input[type="password"]')
@@ -443,6 +458,7 @@ class BrowserAutomationService:
                     cls._active_sessions[session_id]["last_event"] = "LOGIN_VERIFIED"
             return {"authenticated": True, "status": "LOGIN_VERIFIED", "message": "Portal session authenticated!"}
         else:
+            cls._metrics["login_failures"] += 1
             return {"authenticated": False, "status": "LOGIN_REQUIRED", "message": "Please log in inside the Chrome window, then click 'I HAVE LOGGED IN'."}
 
     @classmethod
@@ -456,7 +472,7 @@ class BrowserAutomationService:
         optimized_resume_path: str
     ) -> str:
         """
-        3. Transaction Rollback & Thread-Safe Application Mapping.
+        Transaction Rollback & Thread-Safe Application Mapping with Telemetry Metrics.
         """
         if cls._emergency_stopped:
             raise RuntimeError("Emergency Stop is active. Cannot execute auto apply.")
@@ -506,7 +522,6 @@ class BrowserAutomationService:
             "logs": ["BROWSER_LAUNCH_REQUESTED: headless=false", "FORM_READY: Safe fields mapped", "READY_TO_SUBMIT: Awaiting candidate final approval"]
         }
         
-        # 3. Missing Transaction Rollback
         try:
             await graph_repo.add_entity_node(
                 node_id=node_id,
@@ -521,6 +536,7 @@ class BrowserAutomationService:
                 properties={"timestamp": now_utc}
             )
             await session.commit()
+            cls._metrics["applications_submitted"] += 1
         except Exception as db_err:
             await session.rollback()
             logger.error(f"BrowserAutomation: Database transaction error in run_auto_apply: {db_err}")
