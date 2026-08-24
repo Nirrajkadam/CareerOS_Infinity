@@ -49,8 +49,15 @@ export default function ResumeManagementPage() {
       const formData = new FormData();
       formData.append('file', file);
 
+      const token = typeof window !== 'undefined' ? localStorage.getItem('careeros_access_token') : null;
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch('http://localhost:8000/api/v1/resumes/upload', {
         method: 'POST',
+        headers,
         body: formData,
       });
 
@@ -62,11 +69,17 @@ export default function ResumeManagementPage() {
         fetchResumes();
       } else {
         setParsingStep('IDLE');
-        alert('Upload parsing error. Please verify PDF/DOCX layout.');
+        try {
+          const errData = await res.json();
+          alert(`Upload error (${res.status}): ${errData.detail || errData.message || 'Please verify PDF/DOCX layout.'}`);
+        } catch {
+          alert(`Upload error (${res.status}): Please verify PDF/DOCX layout.`);
+        }
       }
     } catch (err) {
       console.error('Upload failed:', err);
       setParsingStep('IDLE');
+      alert('Network error connecting to backend server.');
     }
   }
 
