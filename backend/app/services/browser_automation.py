@@ -91,6 +91,7 @@ class BrowserAutomationService:
                 if f in lock_names or f.endswith(".lock") or f == "LOCK":
                     file_path = os.path.join(root, f)
                     try:
+                        os.chmod(file_path, 0o777)
                         os.remove(file_path)
                     except Exception:
                         pass
@@ -138,15 +139,6 @@ class BrowserAutomationService:
             "headless": False,  # STRICT INVARIANT: Always False for LIVE candidate mode
             "browser": "Chromium (Google Chrome)" if chrome_path else "Chromium",
             "process": "RUNNING" if is_running else "STOPPED",
-            "context": "CREATED" if (active_session and active_session.get("context_created")) else "NOT_CREATED",
-            "page": "CREATED" if (active_session and active_session.get("page_created")) else "NOT_CREATED",
-            "current_url": page_url,
-            "authentication": active_session.get("authentication_status", "LOGIN_REQUIRED") if active_session else "LOGIN_REQUIRED",
-            "last_event": active_session.get("last_event", cls._last_runtime_event) if active_session else cls._last_runtime_event,
-            "browser_state": runtime_state,
-            "browser_available": chrome_path is not None,
-            "browser_running": is_running,
-            "browser_connected": is_connected,
             "emergency_stopped": cls._emergency_stopped,
             "active_profiles": active_profiles
         }
@@ -165,13 +157,25 @@ class BrowserAutomationService:
         if cls._emergency_stopped:
             raise RuntimeError("Emergency Stop is currently active. Resume automation before launching browser.")
 
+        session_id = f"session_{portal.lower().strip()}"
+
+        # Re-use active open window if already running
+        if session_id in cls._active_browser_instances:
+            inst = cls._active_browser_instances[session_id]
+            if inst.get("page") and not inst["page"].is_closed():
+                logger.info(f"BrowserAutomation: Reusing existing active Chrome window for {portal}")
+                try:
+                    await inst["page"].bring_to_front()
+                    return
+                except Exception:
+                    pass
+
         logger.info(f"BrowserAutomation: BROWSER_LAUNCH_REQUESTED: headless=false portal={portal}")
         cls._last_runtime_event = "BROWSER_LAUNCH_REQUESTED (headless=false)"
         profile_dir = cls._get_profile_dir(portal)
         cls._cleanup_profile_locks(profile_dir)
         chrome_path = cls._get_chrome_executable()
         
-        session_id = f"session_{portal.lower().strip()}"
         cls._active_sessions[session_id] = {
             "session_id": session_id,
             "state": "LAUNCHING",
@@ -217,9 +221,15 @@ class BrowserAutomationService:
             except Exception as launch_err:
                 logger.warning(f"BrowserAutomation: initial launch failed ({launch_err}), attempting profile fallback")
                 cls._cleanup_profile_locks(profile_dir)
-                if "executable_path" in kwargs:
-                    kwargs.pop("executable_path")
-                context = await p_driver.chromium.launch_persistent_context(**kwargs)
+                alt_dir = f"{profile_dir}_runtime"
+                os.makedirs(alt_dir, exist_ok=True)
+                kwargs["user_data_dir"] = alt_dir
+                try:
+                    context = await p_driver.chromium.launch_persistent_context(**kwargs)
+                except Exception:
+                    if "executable_path" in kwargs:
+                        kwargs.pop("executable_path")
+                    context = await p_driver.chromium.launch_persistent_context(**kwargs)
             
             logger.info("BrowserAutomation: CONTEXT_CREATED")
             cls._active_sessions[session_id]["context_created"] = True
