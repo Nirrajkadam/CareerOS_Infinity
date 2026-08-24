@@ -4,7 +4,7 @@ import datetime
 import uuid
 import sys
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.graph_repository import PostgreSQLGraphRepository
 from app.services.credential_vault import CredentialVault
@@ -31,7 +31,9 @@ class BrowserAutomationService:
     _application_registry: Dict[str, Dict[str, Any]] = {}
     _application_sessions: Dict[str, str] = {}
     
-    _session_lock: asyncio.Lock = asyncio.Lock()
+    # Re-entrancy Guard & Enterprise Lock Initialization
+    _closing_sessions: Set[str] = set()
+    _session_lock: Optional[asyncio.Lock] = None
     _last_runtime_event: str = "AVAILABLE_IDLE"
     _emergency_stopped: bool = False
 
@@ -42,7 +44,6 @@ class BrowserAutomationService:
         "session_expired_count": 0
     }
 
-    # 1. Correct Monster vs Foundit configurations
     PORTAL_CONFIG: Dict[str, Dict[str, Any]] = {
         "linkedin": {
             "login_url": "https://www.linkedin.com/login",
@@ -77,11 +78,20 @@ class BrowserAutomationService:
     }
 
     @classmethod
+    def _get_lock(cls) -> asyncio.Lock:
+        """
+        Lazy enterprise lock initialization for hot-reload and multi-worker safety.
+        """
+        if cls._session_lock is None:
+            cls._session_lock = asyncio.Lock()
+        return cls._session_lock
+
+    @classmethod
     async def _inc_metric(cls, key: str) -> None:
         """
-        2. Thread-safe metrics increment protected by _session_lock.
+        Thread-safe metrics increment protected by _get_lock().
         """
-        async with cls._session_lock:
+        async with cls._get_lock():
             if key in cls._metrics:
                 cls._metrics[key] += 1
 
@@ -112,7 +122,7 @@ class BrowserAutomationService:
         max_age_sec = max_age_hours * 3600
         
         expired_ids = []
-        async with cls._session_lock:
+        async with cls._get_lock():
             for sid, sdata in list(cls._active_sessions.items()):
                 last_seen = sdata.get("last_seen", sdata.get("created_at", 0))
                 if (now - last_seen) > max_age_sec:
@@ -126,33 +136,41 @@ class BrowserAutomationService:
     @classmethod
     async def close_session(cls, session_id: str):
         """
-        Proper Browser Cleanup & Thread-Safe Memory Registry Cleanup.
-        Closes page, context, driver, and clears active session & application registries under lock.
+        Proper Browser Cleanup & Thread-Safe Memory Registry Cleanup with Re-entrancy Guard.
+        Prevents recursive event listener cleanup cascades using _closing_sessions guard.
         """
-        inst = cls._active_browser_instances.get(session_id)
-        if inst:
-            try:
-                if inst.get("page") and not inst["page"].is_closed():
-                    await inst["page"].close()
+        lock = cls._get_lock()
+        async with lock:
+            if session_id in cls._closing_sessions:
+                return
+            cls._closing_sessions.add(session_id)
 
-                if inst.get("context"):
-                    await inst["context"].close()
+        try:
+            inst = cls._active_browser_instances.get(session_id)
+            if inst:
+                try:
+                    if inst.get("page") and not inst["page"].is_closed():
+                        await inst["page"].close()
 
-                if inst.get("driver"):
-                    await inst["driver"].stop()
+                    if inst.get("context"):
+                        await inst["context"].close()
 
-                logger.info(f"BrowserAutomation: Successfully closed browser session '{session_id}'")
-            except Exception as e:
-                logger.warning(f"BrowserAutomation: Cleanup error for session '{session_id}': {e}")
+                    if inst.get("driver"):
+                        await inst["driver"].stop()
 
-        async with cls._session_lock:
-            cls._active_browser_instances.pop(session_id, None)
-            cls._active_sessions.pop(session_id, None)
-            cls._application_registry.pop(session_id, None)
-            for app_id, sid in list(cls._application_sessions.items()):
-                if sid == session_id or app_id == session_id:
-                    cls._application_sessions.pop(app_id, None)
-                    cls._application_registry.pop(app_id, None)
+                    logger.info(f"BrowserAutomation: Successfully closed browser session '{session_id}'")
+                except Exception as e:
+                    logger.warning(f"BrowserAutomation: Cleanup error for session '{session_id}': {e}")
+        finally:
+            async with lock:
+                cls._closing_sessions.discard(session_id)
+                cls._active_browser_instances.pop(session_id, None)
+                cls._active_sessions.pop(session_id, None)
+                cls._application_registry.pop(session_id, None)
+                for app_id, sid in list(cls._application_sessions.items()):
+                    if sid == session_id or app_id == session_id:
+                        cls._application_sessions.pop(app_id, None)
+                        cls._application_registry.pop(app_id, None)
 
     @staticmethod
     def _get_profile_dir(portal: str) -> str:
@@ -286,8 +304,9 @@ class BrowserAutomationService:
         chrome_path = cls._get_chrome_executable()
         
         now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        lock = cls._get_lock()
 
-        async with cls._session_lock:
+        async with lock:
             cls._active_sessions[session_id] = {
                 "session_id": session_id,
                 "portal": portal,
@@ -309,7 +328,7 @@ class BrowserAutomationService:
             from playwright.async_api import async_playwright
             logger.info("BrowserAutomation: BROWSER_PROCESS_STARTED (persistent driver instance)")
             
-            async with cls._session_lock:
+            async with lock:
                 if session_id in cls._active_sessions:
                     cls._active_sessions[session_id]["state"] = "RUNNING"
                     cls._active_sessions[session_id]["last_event"] = "BROWSER_PROCESS_STARTED"
@@ -354,14 +373,14 @@ class BrowserAutomationService:
             context.on("close", lambda: asyncio.create_task(cls.close_session(session_id)))
 
             logger.info("BrowserAutomation: CONTEXT_CREATED")
-            async with cls._session_lock:
+            async with lock:
                 if session_id in cls._active_sessions:
                     cls._active_sessions[session_id]["context_created"] = True
                     cls._active_sessions[session_id]["last_event"] = "CONTEXT_CREATED"
             
             page = await context.new_page()
             logger.info("BrowserAutomation: PAGE_CREATED")
-            async with cls._session_lock:
+            async with lock:
                 if session_id in cls._active_sessions:
                     cls._active_sessions[session_id]["page_created"] = True
                     cls._active_sessions[session_id]["state"] = "PAGE_CREATED"
@@ -385,7 +404,7 @@ class BrowserAutomationService:
                         raise
                     await asyncio.sleep(2)
 
-            async with cls._session_lock:
+            async with lock:
                 if session_id in cls._active_sessions:
                     cls._active_sessions[session_id]["current_url"] = target_url
                     cls._active_sessions[session_id]["state"] = "PORTAL_CONNECTED"
@@ -393,7 +412,7 @@ class BrowserAutomationService:
                     cls._active_sessions[session_id]["authentication_status"] = "LOGIN_REQUIRED"
                     cls._active_sessions[session_id]["last_seen"] = datetime.datetime.now(datetime.timezone.utc).timestamp()
             
-            async with cls._session_lock:
+            async with lock:
                 cls._active_browser_instances[session_id] = {
                     "driver": p_driver,
                     "context": context,
@@ -404,7 +423,7 @@ class BrowserAutomationService:
         except Exception as e:
             await cls._inc_metric("browser_launch_failures")
             logger.error(f"BrowserAutomation: headful launch error: {e}")
-            async with cls._session_lock:
+            async with lock:
                 if session_id in cls._active_sessions:
                     cls._active_sessions[session_id]["state"] = "ERROR"
                     cls._active_sessions[session_id]["last_event"] = f"ERROR ({e})"
@@ -464,12 +483,13 @@ class BrowserAutomationService:
                 authenticated = False
 
         now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
-        async with cls._session_lock:
+        lock = cls._get_lock()
+        async with lock:
             if session_id in cls._active_sessions:
                 cls._active_sessions[session_id]["last_seen"] = now_ts
 
         if authenticated:
-            async with cls._session_lock:
+            async with lock:
                 if session_id in cls._active_sessions:
                     cls._active_sessions[session_id]["authentication_status"] = "LOGIN_VERIFIED"
                     cls._active_sessions[session_id]["state"] = "LOGIN_VERIFIED"
@@ -497,8 +517,9 @@ class BrowserAutomationService:
 
         application_id = str(uuid.uuid4())
         application_session_id = f"app_{application_id[:8]}"
+        lock = cls._get_lock()
         
-        async with cls._session_lock:
+        async with lock:
             cls._application_sessions[application_id] = application_session_id
 
         node_id = f"application:{application_id}"
@@ -561,7 +582,7 @@ class BrowserAutomationService:
             raise
 
         now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
-        async with cls._session_lock:
+        async with lock:
             cls._application_registry[application_id] = {
                 "application_id": application_id,
                 "application_session_id": application_session_id,
