@@ -187,11 +187,35 @@ def _compute_dynamic_job_match(title: str, description: str, query: str, company
     }
 
 
+def is_indian_location(loc_str: str) -> bool:
+    if not loc_str:
+        return True
+    loc = loc_str.lower()
+    indian_keywords = [
+        "india", "bengaluru", "bangalore", "mumbai", "delhi", "noida", 
+        "gurgaon", "gurugram", "hyderabad", "pune", "chennai", "kolkata", 
+        "ahmedabad", "indore", "kochi", "karnataka", "maharashtra", "telangana"
+    ]
+    if any(ik in loc for ik in indian_keywords):
+        return True
+    non_india = [
+        "united states", "california", "new york", "san francisco", "chicago", 
+        "seattle", "austin", "boston", "london", "uk", "germany", "singapore", 
+        "australia", "canada", "berkeley", "nordics", "europe", "tokyo", "paris"
+    ]
+    if any(ni in loc for ni in non_india):
+        return False
+    return True
+
+
 @router.get("/discover", response_model=None)
-async def discover_jobs_endpoint(query: str = Query("Data Engineer")):
+async def discover_jobs_endpoint(
+    query: str = Query("Data Engineer"),
+    india_only: bool = Query(True)
+):
     """
     Discovers authentic live job postings using authentic scrapers and ATS APIs.
-    Computes dynamic, role-specific ATS match scores and tailored resume proposals.
+    Supports filtering by Indian locations.
     """
     from app.services.job_sources.naukri import NaukriJobSource
     from app.services.job_sources.linkedin import LinkedInJobSource
@@ -218,6 +242,10 @@ async def discover_jobs_endpoint(query: str = Query("Data Engineer")):
 
     enriched_results = []
     for item in raw_results:
+        loc = item.get("location", "")
+        if india_only and not is_indian_location(loc):
+            continue
+
         match_data = _compute_dynamic_job_match(
             title=item.get("title", ""),
             description=item.get("description", ""),

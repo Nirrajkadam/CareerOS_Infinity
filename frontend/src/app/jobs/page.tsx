@@ -14,6 +14,7 @@ import {
 
 export default function JobsFeedPage() {
   const [query, setQuery] = useState('Data Engineer');
+  const [indiaOnly, setIndiaOnly] = useState(true);
   const [jobs, setJobs] = useState<any[]>([]);
   const [sourceHealth, setSourceHealth] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,7 @@ export default function JobsFeedPage() {
   useEffect(() => {
     fetchJobs();
     fetchSourceHealth();
-  }, []);
+  }, [indiaOnly]);
 
   async function fetchSourceHealth() {
     try {
@@ -38,7 +39,7 @@ export default function JobsFeedPage() {
   async function fetchJobs() {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/jobs/discover?query=${encodeURIComponent(query)}`);
+      const res = await fetch(`http://localhost:8000/api/v1/jobs/discover?query=${encodeURIComponent(query)}&india_only=${indiaOnly}`);
       if (res.ok) {
         const data = await res.json();
         setJobs(data);
@@ -54,13 +55,15 @@ export default function JobsFeedPage() {
     <div className="space-y-8">
       
       {/* Header */}
-      <div className="border-b border-neutral-800 pb-4">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          Authentic Job Discovery Feed <Briefcase size={20} className="text-emerald-400" />
-        </h1>
-        <p className="text-xs text-neutral-400 mt-1">
-          Explore real live listings directly from company ATS endpoints and candidate browser sessions.
-        </p>
+      <div className="border-b border-neutral-800 pb-4 flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            Authentic Job Discovery Feed <Briefcase size={20} className="text-emerald-400" />
+          </h1>
+          <p className="text-xs text-neutral-400 mt-1">
+            Explore real live listings directly from company ATS endpoints and candidate browser sessions.
+          </p>
+        </div>
       </div>
 
       {/* Source Health Indicator Strip */}
@@ -80,8 +83,8 @@ export default function JobsFeedPage() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="flex flex-col sm:flex-row gap-3 bg-neutral-900/60 p-4 rounded-xl border border-neutral-800">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row items-center gap-3 bg-neutral-900/60 p-4 rounded-xl border border-neutral-800">
+        <div className="relative flex-1 w-full">
           <Search size={16} className="absolute left-3 top-3 text-neutral-500" />
           <input
             type="text"
@@ -91,9 +94,23 @@ export default function JobsFeedPage() {
             className="w-full pl-9 pr-4 py-2 bg-neutral-950 border border-neutral-800 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
           />
         </div>
+
+        {/* Location Filter Toggle */}
+        <button
+          onClick={() => setIndiaOnly(!indiaOnly)}
+          className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            indiaOnly 
+              ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300' 
+              : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+          }`}
+        >
+          <MapPin size={14} className={indiaOnly ? 'text-emerald-400' : 'text-neutral-500'} />
+          {indiaOnly ? '🇮🇳 India Jobs Only' : '🌐 Global Jobs'}
+        </button>
+
         <button
           onClick={fetchJobs}
-          className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5"
+          className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 w-full sm:w-auto"
         >
           <Search size={14} /> Search Live Jobs
         </button>
