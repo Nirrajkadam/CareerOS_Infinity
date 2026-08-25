@@ -24,7 +24,12 @@ export default function ResumeManagementPage() {
 
   async function fetchResumes() {
     try {
-      const res = await fetch('http://localhost:8000/api/v1/resumes');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('careeros_access_token') : null;
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch('http://localhost:8000/api/v1/resumes', { headers });
       if (res.ok) {
         const data = await res.json();
         setResumes(data);

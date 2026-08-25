@@ -238,6 +238,8 @@ async def get_master_resume(
         "created_at": resume.created_at.isoformat()
     }
 
+@router.get("", status_code=status.HTTP_200_OK)
+@router.get("/", status_code=status.HTTP_200_OK)
 @router.get("/versions", status_code=status.HTTP_200_OK)
 async def get_resume_versions(
     current_user: User = Depends(get_current_user),
@@ -253,10 +255,25 @@ async def get_resume_versions(
     )
     resumes = result.scalars().all()
     
-    return [
-        {
+    out = []
+    for r in resumes:
+        skills = []
+        if r.resume_json and isinstance(r.resume_json, dict):
+            comp = r.resume_json.get("competencies", [])
+            if isinstance(comp, list):
+                for item in comp:
+                    if isinstance(item, dict) and "name" in item:
+                        skills.append(item["name"])
+                    elif isinstance(item, str):
+                        skills.append(item)
+        
+        out.append({
             "id": str(r.id),
+            "title": f"Master Resume (v{r.version})" if r.is_master else f"Tailored Version (v{r.version})",
             "filename": r.file_url,
+            "raw_text": r.raw_text or "",
+            "structured_data": r.resume_json or {},
+            "skills": skills,
             "version": r.version,
             "is_master": r.is_master,
             "resume_type": r.resume_type,
@@ -267,8 +284,8 @@ async def get_resume_versions(
             "ats_score_before": r.ats_score_before,
             "ats_score_after": r.ats_score_after,
             "created_at": r.created_at.isoformat()
-        } for r in resumes
-    ]
+        })
+    return out
 
 @router.post("/tailor", status_code=status.HTTP_201_CREATED)
 async def tailor_resume(
