@@ -25,6 +25,7 @@ export default function JobsFeedPage() {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
 
   // Advanced Filter States
+  const [selectedJobRole, setSelectedJobRole] = useState<string>('ALL');
   const [selectedCity, setSelectedCity] = useState<string>('ALL');
   const [selectedExperience, setSelectedExperience] = useState<string>('ALL');
   const [minMatchScore, setMinMatchScore] = useState<number>(0);
@@ -66,14 +67,16 @@ export default function JobsFeedPage() {
   // Active filters count
   const activeFiltersCount = useMemo(() => {
     let count = 0;
+    if (selectedJobRole !== 'ALL') count++;
     if (selectedCity !== 'ALL') count++;
     if (selectedExperience !== 'ALL') count++;
     if (minMatchScore > 0) count++;
     if (selectedSource !== 'ALL') count++;
     return count;
-  }, [selectedCity, selectedExperience, minMatchScore, selectedSource]);
+  }, [selectedJobRole, selectedCity, selectedExperience, minMatchScore, selectedSource]);
 
   function resetFilters() {
+    setSelectedJobRole('ALL');
     setSelectedCity('ALL');
     setSelectedExperience('ALL');
     setMinMatchScore(0);
@@ -85,6 +88,20 @@ export default function JobsFeedPage() {
   const filteredJobs = useMemo(() => {
     return jobs
       .filter((j) => {
+        const title = (j.title || '').toLowerCase();
+        const desc = (j.description || '').toLowerCase();
+
+        // Job Role / Function Filter
+        if (selectedJobRole !== 'ALL') {
+          if (selectedJobRole === 'DATA_ENGINEER' && (!title.includes('data') && !title.includes('etl') && !title.includes('analytics'))) return false;
+          if (selectedJobRole === 'BACKEND' && (!title.includes('backend') && !title.includes('system') && !title.includes('software engineer') && !title.includes('engineer') && !title.includes('developer'))) return false;
+          if (selectedJobRole === 'AI_ML' && (!title.includes('ai') && !title.includes('ml') && !title.includes('machine learning') && !desc.includes('machine learning'))) return false;
+          if (selectedJobRole === 'FULLSTACK_FRONTEND' && (!title.includes('frontend') && !title.includes('fullstack') && !title.includes('react') && !title.includes('web'))) return false;
+          if (selectedJobRole === 'DEVOPS_CLOUD' && (!title.includes('devops') && !title.includes('cloud') && !title.includes('infra') && !title.includes('sre'))) return false;
+          if (selectedJobRole === 'SECURITY' && (!title.includes('security') && !title.includes('audit') && !title.includes('compliance'))) return false;
+          if (selectedJobRole === 'PRODUCT_MANAGER' && (!title.includes('product') && !title.includes('manager') && !title.includes('lead'))) return false;
+        }
+
         // City / Region Filter
         if (selectedCity !== 'ALL') {
           const loc = (j.location || '').toLowerCase();
@@ -98,7 +115,6 @@ export default function JobsFeedPage() {
 
         // Experience Level Filter
         if (selectedExperience !== 'ALL') {
-          const title = (j.title || '').toLowerCase();
           if (selectedExperience === 'ENTRY' && (!title.includes('intern') && !title.includes('junior') && !title.includes('associate'))) return false;
           if (selectedExperience === 'MID' && (title.includes('senior') || title.includes('lead') || title.includes('principal') || title.includes('manager'))) return false;
           if (selectedExperience === 'SENIOR' && (!title.includes('senior') && !title.includes('lead') && !title.includes('principal') && !title.includes('manager'))) return false;
@@ -126,7 +142,7 @@ export default function JobsFeedPage() {
         if (sortBy === 'COMPANY_ASC') return (a.company || '').localeCompare(b.company || '');
         return 0;
       });
-  }, [jobs, selectedCity, selectedExperience, minMatchScore, selectedSource, sortBy]);
+  }, [jobs, selectedJobRole, selectedCity, selectedExperience, minMatchScore, selectedSource, sortBy]);
 
   return (
     <div className="space-y-8">
@@ -209,8 +225,27 @@ export default function JobsFeedPage() {
 
         {/* Expandable Advanced Filter Panel */}
         {showFilterDrawer && (
-          <div className="pt-3 border-t border-neutral-800/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="pt-3 border-t border-neutral-800/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
             
+            {/* Job Role Category Filter */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider block">Job Role Category</label>
+              <select
+                value={selectedJobRole}
+                onChange={(e) => setSelectedJobRole(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-emerald-500"
+              >
+                <option value="ALL">All Job Roles</option>
+                <option value="DATA_ENGINEER">Data Engineer / Analytics</option>
+                <option value="BACKEND">Backend & System Engineer</option>
+                <option value="AI_ML">AI / ML / LLM Specialist</option>
+                <option value="FULLSTACK_FRONTEND">Fullstack & Frontend Dev</option>
+                <option value="DEVOPS_CLOUD">DevOps / Cloud / SRE</option>
+                <option value="SECURITY">Security & Compliance</option>
+                <option value="PRODUCT_MANAGER">Product & Project Lead</option>
+              </select>
+            </div>
+
             {/* City / Location Filter */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider block">City / Work Mode</label>
