@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '../../../lib/apiClient';
+
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
@@ -16,83 +18,47 @@ import {
 
 export default function ApplicationDetailPage({ params }: { params: { id: string } }) {
   const [app, setApp] = useState<any>(null);
-  const [level2Approved, setLevel2Approved] = useState(false);
   const [verifyingEmail, setVerifyingEmail] = useState(false);
   const [emailSyncResult, setEmailSyncResult] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([
-    'BROWSER_PROCESS_STARTED',
-    'CONTEXT_CREATED',
-    'PAGE_CREATED',
-    'PORTAL_CONNECTED: Target portal loaded.',
-    'FORM_READY: Form fields mapped.',
-  ]);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchAppDetails();
   }, [params.id]);
 
   async function fetchAppDetails() {
+    setLoading(true);
+    setError('');
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications');
-      if (res.ok) {
-        const apps = await res.json();
-        const found = apps.find((a: any) => a.id === params.id) || apps[0];
-        setApp(found);
-        if (found?.logs) setLogs(found.logs);
-      }
+      const found = await apiFetch<any>(`/api/v1/applications/${encodeURIComponent(params.id)}`);
+      setApp(found);
+      setLogs(Array.isArray(found.logs) ? found.logs : []);
     } catch (err) {
-      console.error('Failed to fetch application detail:', err);
-    }
+      setApp(null);
+      setError(err instanceof Error ? err.message : 'Unable to load this application.');
+    } finally { setLoading(false); }
   }
 
-  async function handleLevel2ConfirmSubmit() {
-    setLevel2Approved(true);
-    try {
-      const res = await fetch('http://localhost:8000/api/v1/applications/verify-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ portal: app?.company?.toLowerCase() || 'naukri', verified: true })
-      });
-      if (res.ok) {
-        setApp((prev: any) => ({ ...prev, status: 'SUBMITTED' }));
-        setLogs(prev => [...prev, 'USER_CONFIRMED_SUBMIT: Candidate granted Level 2 submission approval. Status = SUBMITTED (Unverified).']);
-      }
-    } catch (err) {
-      console.error('Level 2 submission error:', err);
-    }
-  }
-
-  // 100% Authentic Email IMAP Sync API Call
   async function handleVerifyViaEmail() {
     setVerifyingEmail(true);
     setEmailSyncResult(null);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications/sync-emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ application_id: params.id, company: app?.company })
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        if (data.verified || data.emails_matched > 0 || (data.emails && data.emails.length > 0)) {
-          setApp((prev: any) => ({ ...prev, status: 'SUBMITTED_VERIFIED' }));
-          setEmailSyncResult('SUCCESS: Verified employer confirmation receipt synced! Status set to SUBMITTED_VERIFIED 🟢');
-          setLogs(prev => [...prev, 'EMAIL_CONFIRMED: Real IMAP sync verified employer receipt email.']);
-        } else {
-          setEmailSyncResult('NOTICE: No matching employer confirmation email detected yet. Re-click sync once employer confirmation email arrives in inbox.');
-          setLogs(prev => [...prev, 'EMAIL_SYNC_CHECKED: No employer receipt email found yet. Status remains unverified.']);
-        }
-      } else {
-        setEmailSyncResult('NOTICE: IMAP service response code error. Check Vault credentials at /settings/credentials.');
-      }
+      await apiFetch(`/api/v1/applications/${encodeURIComponent(params.id)}/verify-email`, { method: 'POST' });
+      const record = await apiFetch<any>(`/api/v1/applications/${encodeURIComponent(params.id)}`);
+      setApp(record);
+      setLogs(Array.isArray(record.logs) ? record.logs : []);
+      setEmailSyncResult(record.status === 'SUBMITTED_VERIFIED'
+        ? 'SUCCESS: Confirmation is recorded for this application.'
+        : 'No confirmation is recorded for this application yet.');
     } catch (err) {
-      console.error('Real email sync error:', err);
-      setEmailSyncResult('NOTICE: IMAP server query pending.');
-    } finally {
-      setVerifyingEmail(false);
-    }
+      setEmailSyncResult(err instanceof Error ? err.message : 'Unable to verify this application.');
+    } finally { setVerifyingEmail(false); }
   }
+
+  if (loading) return <p role="status" className="p-8 text-neutral-400">Loading application…</p>;
+  if (!app) return <div className="space-y-4"><Link href="/applications" className="text-emerald-400">Back to applications</Link><p role="alert">{error || 'Application not found.'}</p></div>;
 
   // STRICT INVARIANT: ONLY SUBMITTED_VERIFIED gets the green verified badge!
   const isVerified = app?.status === 'SUBMITTED_VERIFIED';
@@ -108,7 +74,7 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
       {/* Header Info Banner */}
       <div className="bg-neutral-900/60 p-6 rounded-2xl border border-neutral-800 flex justify-between items-start gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">{app?.role || 'Data Engineer'}</h1>
+          <h1 className="text-2xl font-bold text-white">{app?.role || 'Role unavailable'}</h1>
           <div className="flex items-center gap-4 text-xs text-neutral-400 mt-1">
             <span className="flex items-center gap-1"><Building2 size={14} className="text-emerald-400" /> {app?.company || 'Target Employer'}</span>
             <span>ID: {params.id}</span>
@@ -136,55 +102,13 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
       {/* Two-Level Approval UI Section */}
       <div className="bg-neutral-900/80 p-6 rounded-xl border border-neutral-800 space-y-4">
         <h2 className="text-sm font-bold text-white flex items-center gap-2">
-          <ShieldCheck size={18} className="text-emerald-400" /> Two-Level Candidate Approval Control
+          <ShieldCheck size={18} className="text-emerald-400" /> Application status and evidence
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-          {/* Level 1 Approval Gate */}
-          <div className="p-4 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2">
-            <div className="flex justify-between items-center text-xs font-bold text-white">
-              <span>Level 1: Package Approval</span>
-              <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 text-[9px] font-bold border border-emerald-800">
-                PASSED
-              </span>
-            </div>
-            <p className="text-[11px] text-neutral-400 leading-relaxed">
-              Tailored resume and cover letter package inspected with TruthGuard safety.
-            </p>
-          </div>
-
-          {/* Level 2 Approval Gate */}
-          <div className="p-4 bg-neutral-950 rounded-xl border border-neutral-800 space-y-3">
-            <div className="flex justify-between items-center text-xs font-bold text-white">
-              <span>Level 2: Final Submission Confirm</span>
-              {level2Approved || app?.status === 'SUBMITTED' || isVerified ? (
-                <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 text-[9px] font-bold border border-emerald-800">
-                  CONFIRMED
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold border border-amber-800">
-                  AWAITING CANDIDATE
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-neutral-400 leading-relaxed">
-              Confirms final execution of application form submission.
-            </p>
-            <button
-              onClick={handleLevel2ConfirmSubmit}
-              disabled={level2Approved || isVerified}
-              className={`w-full py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                level2Approved || isVerified
-                  ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30'
-              }`}
-            >
-              <ThumbsUp size={14} /> {level2Approved || isVerified ? 'Submission Confirmed' : 'Confirm Final Submission'}
-            </button>
-          </div>
-
-        </div>
+        <p className="text-sm text-neutral-400">
+          This view displays the recorded application status. Complete the application in the employer portal;
+          opening a browser or verifying login does not submit an application.
+        </p>
 
         {/* Real Email Verification Action (No mock setTimeout) */}
         <div className="pt-3 border-t border-neutral-800 space-y-2">

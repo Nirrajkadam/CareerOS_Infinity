@@ -2,6 +2,7 @@ import React from 'react';
 import type { Metadata } from 'next';
 import './globals.css';
 import Navigation from '../components/Navigation';
+import AuthGate from '../components/AuthGate';
 import CommandPalette from '../components/CommandPalette';
 import VoiceAssistant from '../components/VoiceAssistant';
 
@@ -19,6 +20,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className="min-h-screen bg-neutral-950 text-neutral-50 font-sans flex flex-col">
         
+        <AuthGate>
         {/* Navigation Header Bar */}
         <Navigation />
 
@@ -32,6 +34,7 @@ export default function RootLayout({
           {/* AI Voice Control Assistant */}
           <VoiceAssistant />
         </main>
+        </AuthGate>
         
       </body>
     </html>

@@ -89,9 +89,11 @@ class EmailSyncService:
             nodes = await graph_repo.get_entities_by_type("APPLICATION")
             for node in nodes:
                 props = dict(node.properties)
+                if str(props.get("user_id")) != str(user_id):
+                    continue
                 comp = props.get("company", "")
                 for res in sync_results:
-                    if comp and comp.lower() in res.get("subject", "").lower() or comp.lower() in res.get("company", "").lower():
+                    if comp and (comp.lower() in res.get("subject", "").lower() or comp.lower() in res.get("company", "").lower()):
                         props["status"] = "SUBMITTED_VERIFIED"
                         if "EMAIL_CONFIRMED: Real IMAP sync verified employer receipt." not in props.get("logs", []):
                             props.setdefault("logs", []).append("EMAIL_CONFIRMED: Real IMAP sync verified employer receipt.")

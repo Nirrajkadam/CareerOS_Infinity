@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest } from '../lib/apiClient';
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic, MicOff, Volume2, Sparkles, X, Bot, Terminal, Send, RefreshCw, ShieldCheck, UserCheck, Compass } from 'lucide-react';
@@ -124,7 +126,7 @@ export default function VoiceAssistant() {
     setTranscript(cmdText);
 
     try {
-      const res = await fetch('http://localhost:8000/api/v1/jobpilot/agent-command', {
+      const res = await apiRequest('/api/v1/jobpilot/agent-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: cmdText })

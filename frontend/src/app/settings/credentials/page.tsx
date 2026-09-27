@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import { apiFetch, apiRequest } from '../../../lib/apiClient';
+
+import React, { useState, useEffect } from 'react';
 import { 
   KeyRound, 
   Lock, 
@@ -17,39 +19,55 @@ export default function CredentialVaultPage() {
   const [testingLogin, setTestingLogin] = useState(false);
   const [loginTested, setLoginTested] = useState(false);
 
-  const [savedCredentials, setSavedCredentials] = useState([
-    { portal: 'Naukri.com', username: 'nirraj.official@gmail.com', date: '2026-08-14' },
-    { portal: 'LinkedIn', username: 'nirraj.official@gmail.com', date: '2026-08-12' },
-  ]);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [savedCredentials, setSavedCredentials] = useState<{ portal: string; username: string; date?: string }[]>([]);
+
+  useEffect(() => {
+    apiFetch<{ credentials: Record<string, string> }>('/api/v1/applications/credentials')
+      .then(data => setSavedCredentials(Object.entries(data.credentials).map(([portal, username]) => ({ portal, username }))))
+      .catch(err => setError(err instanceof Error ? err.message : 'Unable to load credentials.'));
+  }, []);
 
   async function handleSaveCredentials(e: React.FormEvent) {
     e.preventDefault();
     if (!username || !password) return;
-
-    const portalName = portal === 'naukri' ? 'Naukri.com' : portal === 'linkedin' ? 'LinkedIn' : portal === 'indeed' ? 'Indeed India' : portal;
-
-    setSavedCredentials(prev => [
-      { portal: portalName, username: username.trim(), date: new Date().toISOString().split('T')[0] },
-      ...prev.filter(c => c.portal !== portalName)
-    ]);
-
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaving(true);
+    setSaved(false);
+    setError('');
+    try {
+      await apiFetch('/api/v1/applications/credentials', {
+        method: 'POST', body: JSON.stringify({ portal, username: username.trim(), password }),
+      });
+      setSavedCredentials(prev => [
+        { portal, username: username.trim(), date: new Date().toISOString().split('T')[0] },
+        ...prev.filter(c => c.portal !== portal),
+      ]);
+      setPassword('');
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save credentials.');
+    } finally { setSaving(false); }
   }
 
   async function handleTestLogin() {
     setTestingLogin(true);
+    setLoginTested(false);
+    setError('');
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications/launch-session', {
+      const res = await apiRequest('/api/v1/applications/launch-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ portal })
       });
       if (res.ok) {
         setLoginTested(true);
+      } else {
+        const data = await res.json();
+        throw new Error(data.detail || 'Unable to launch session');
       }
     } catch (err) {
-      console.error('Test login error:', err);
+      setError(err instanceof Error ? err.message : 'Unable to launch session.');
     } finally {
       setTestingLogin(false);
     }
@@ -71,9 +89,10 @@ export default function CredentialVaultPage() {
       {/* Encryption Banner */}
       <div className="bg-emerald-950/40 p-4 rounded-xl border border-emerald-800 flex items-center gap-3 text-xs text-emerald-300">
         <Lock size={18} className="text-emerald-400 shrink-0" />
-        <span>All portal credentials are encrypted using AES-256 Fernet keys stored in isolated server environment variables.</span>
+        <span>Portal credentials are encrypted with Fernet. Shared desktop sessions are restricted to the configured operator.</span>
       </div>
 
+      {error && <p role="alert" className="rounded-lg border border-red-900 bg-red-950/30 p-4 text-sm text-red-200">{error}</p>}
       {/* Form & Saved Vault Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
@@ -120,7 +139,7 @@ export default function CredentialVaultPage() {
 
           <div className="flex items-center gap-3 pt-2">
             <button
-              type="submit"
+              type="submit" disabled={saving}
               className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-1.5"
             >
               <Save size={14} /> {saved ? 'Encrypted & Saved!' : 'Encrypt & Save'}
@@ -138,7 +157,7 @@ export default function CredentialVaultPage() {
 
           {loginTested && (
             <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-              <CheckCircle2 size={12} /> Chrome session launched. Please complete candidate login in browser.
+              <CheckCircle2 size={12} /> Browser launch requested. Complete candidate login when the window opens.
             </span>
           )}
         </form>
@@ -153,13 +172,13 @@ export default function CredentialVaultPage() {
                 <div className="flex justify-between items-center text-xs font-bold text-white">
                   <span>{cred.portal}</span>
                   <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
-                    Encrypted AES-256
+                    Fernet encrypted
                   </span>
                 </div>
                 <div className="text-xs text-emerald-400 font-mono font-semibold">{cred.username}</div>
                 <div className="text-[10px] text-neutral-500 flex justify-between items-center pt-1">
                   <span>Password: ••••••••</span>
-                  <span>Saved: {cred.date}</span>
+                  <span>Saved: {cred.date || 'Previously saved'}</span>
                 </div>
               </div>
             ))}

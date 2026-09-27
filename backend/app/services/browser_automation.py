@@ -566,15 +566,18 @@ class BrowserAutomationService:
 
         properties = {
             "id": application_id,
+            "user_id": str(user_id),
             "company": company,
             "role": role,
             "portal_url": portal_url,
             "status": "READY_TO_SUBMIT",
-            "applied_at": now_utc,
+            "created_at": now_utc,
+            "applied_at": None,
+            "submitted_at": None,
             "resume_path": optimized_resume_path or "",
             "resume_hash": resume_hash or "",
             "tailored_resume": tailored_text,
-            "logs": ["BROWSER_LAUNCH_REQUESTED: headless=false", "FORM_READY: Safe fields mapped", "READY_TO_SUBMIT: Awaiting candidate final approval"]
+            "logs": ["APPLICATION_PREPARED: Record created; employer submission has not occurred."]
         }
         
         try:
@@ -591,7 +594,6 @@ class BrowserAutomationService:
                 properties={"timestamp": now_utc}
             )
             await session.commit()
-            await cls._inc_metric("applications_submitted")
         except Exception as db_err:
             await session.rollback()
             logger.error(f"BrowserAutomation: Database transaction error in run_auto_apply: {db_err}")
@@ -607,7 +609,7 @@ class BrowserAutomationService:
                 "portal_url": portal_url,
                 "state": "READY_TO_SUBMIT",
                 "mode": "LIVE",
-                "authentication_status": "LOGIN_VERIFIED",
+                "authentication_status": "UNKNOWN",
                 "created_at": now_ts,
                 "last_seen": now_ts
             }

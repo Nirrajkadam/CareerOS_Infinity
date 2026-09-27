@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_desktop_operator
 from app.models.user import User
 from app.models.job import JobPosting
 from app.models.job_discovery import JobPipelineControl, SkillGapAggregate
@@ -120,7 +120,7 @@ async def emergency_stop_endpoint(
 @router.post("/agent-command", status_code=status.HTTP_200_OK)
 async def voice_agent_command_endpoint(
     payload: dict,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_desktop_operator),
     session: AsyncSession = Depends(get_db_session)
 ) -> dict:
     """

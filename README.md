@@ -1,102 +1,101 @@
-# CareerOS Infinity - AI Career Intelligence & JobPilot Autonomous Engine
+# CareerOS Infinity
 
-CareerOS Infinity is an enterprise-grade, asynchronous AI Career Intelligence Platform & Autonomous Job Hunter designed to ingest resumes, validate layouts, structure profile data, run semantic ATS match analytics, and automate job applications across 27+ top portals with headful browser telemetry and TruthGuard safety.
+A career-workflow prototype built with **Next.js, FastAPI, PostgreSQL/pgvector, Redis and Playwright**. It includes resume processing, job discovery integrations, application records, and shared desktop portal-session tools.
 
----
+## Current status
 
-## 🚀 Key Features & Capabilities
+The application is under active development. Profile and job-detail screens still contain clearly labeled preview data. Browser/application preparation is not proof of employer submission. The legacy autonomous API rejects its sample listing feed.
 
-- **JobPilot Live Application Control Center**: Real-time browser telemetry, session authentication monitoring, and application state machine tracking.
-- **TruthGuard Safety Engine**: Prevents hallucinated experience or fabricated skills during automated resume tailoring.
-- **Multi-Portal Browser Automation**: Native headful Chrome automation supporting **27 top job portals** (Naukri.com, Indeed India, Foundit, Shine, TimesJobs, Glassdoor, Apna, Cutshort, LinkedIn, Unstop, and more).
-- **Direct Apply Mode**: Autonomous candidate-approved job application submission with instant database logging and evidence verification.
-- **Knowledge Graph Analytics**: PostgreSQL + `pgvector` semantic matching for job fit scoring and priority ranking.
-- **Email Confirmation Sync**: Automated IMAP/SMTP background verification of employer receipt emails.
+See [the engineering review](docs/REVIEW_2026-09-27.md) for implemented fixes, remaining issues, verification scope and upgrade notes.
 
----
+## Local development
 
-## 1. System Architecture (C4 Model)
+### Backend
 
-```mermaid
-graph TD
-    User([User / Job Seeker]) <-->|HTTPS / WSS| WebClient[Next.js Frontend Client]
-    WebClient <-->|REST API| APIGateway[FastAPI Backend Application]
-    APIGateway <-->|Async Tasks| RedisQueue[Redis Broker & Cache]
-    
-    APIGateway <-->|SQL Transaction| PostgreSQL[(PostgreSQL + pgvector)]
-    
-    APIGateway <-->|Browser Telemetry| PlaywrightDriver[Playwright Headful Chrome Engine]
-    PlaywrightDriver <-->|Live Navigation| JobPortals[Job Portals (Naukri, Indeed, Foundit, etc.)]
-    
-    APIGateway <-->|Semantic Match| GraphEngine[Universal Career Knowledge Graph]
-    GraphEngine <-->|Read / Write| PostgreSQL
-    
-    APIGateway <-->|LiteLLM Router| AIGateway[AI Gateway Provider]
-    AIGateway <-->|API Outage Fallback| ModelProviders[Google Gemini / OpenAI]
-```
+Use Python 3.12 and an **already initialized PostgreSQL database with pgvector**. The existing Alembic history needs repair before it can reliably create a fresh database; see the review. Redis is needed for worker-backed functionality.
 
----
-
-## 2. Technology Stack
-
-* **Frontend Web Client:** Next.js (v14), TailwindCSS, TypeScript, Lucide Icons, Zustand.
-* **Backend Server:** FastAPI (Python 3.11/3.13), SQLAlchemy (Async), Uvicorn.
-* **Browser Automation:** Playwright Async API, Headful Chromium / Google Chrome instance driver.
-* **Database Platform:** PostgreSQL 15, `pgvector` (HNSW Semantic Indexing), GraphNode entities.
-* **AI Integrations:** LiteLLM Gateway Routing (Google Gemini 3.5 Flash / Flash Lite / OpenAI).
-* **Testing & Quality:** Pytest (129/129 regression tests passing).
-
----
-
-## 3. Local Startup Guide
-
-### 3.1 Backend Server (FastAPI + Uvicorn)
 ```bash
 cd backend
-venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m venv .venv
+# Linux/macOS:
+source .venv/bin/activate
+# Windows PowerShell instead:
+# .venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+cp .env.example .env
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-### 3.2 Frontend Web App (Next.js)
+Put the generated value in `SECRET_KEY` inside `.env`, then configure `DATABASE_URL` and `REDIS_URL`. On Windows, use `Copy-Item .env.example .env` in place of `cp` if needed.
+
+```bash
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+### Frontend
+
 ```bash
 cd frontend
+npm ci
+cp .env.example .env.local
 npm run dev
 ```
 
-### 3.3 Desktop Headful Browser Launcher
-To trigger a standalone interactive Chrome window on your Windows desktop screen:
+Visit `http://localhost:3000`, create an account and sign in. API documentation is at `http://localhost:8000/docs`.
+
+### Shared desktop functions
+
+Portal browser profiles, the credential vault and IMAP settings are currently shared server resources. Only the account configured by `DESKTOP_OPERATOR_USER_ID` can access them. Leave this setting absent to keep those functions disabled.
+
+1. Sign in and read your account UUID through `GET /api/v1/auth/me` using its bearer token.
+2. Set `DESKTOP_OPERATOR_USER_ID` in the backend environment and restart the backend.
+3. For interactive browser sessions, install Playwright Chromium and run the backend in a desktop environment.
+
 ```bash
-python run_live_browser.py
+python -m playwright install chromium
 ```
 
-Endpoints once initialized:
-* **Web Control Center UI:** [http://localhost:3000/](http://localhost:3000/)
-* **API Interactive Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-* **Browser Telemetry Status:** [http://localhost:8000/api/v1/applications/browser-status](http://localhost:8000/api/v1/applications/browser-status)
+Do not run `autonomous_job_hunter.py` against real portals: its legacy feed includes invented listings. Preparing an application record does not send an application.
 
----
+## Configuration
 
-## 4. API Reference Summary
+| Setting | Purpose |
+|---|---|
+| `SECRET_KEY` | Required private random key, at least 32 characters. Also currently used by the legacy vault. |
+| `DATABASE_URL` | PostgreSQL connection URL. Standard provider URLs are normalized to the asyncpg driver. |
+| `REDIS_URL` | Redis broker/cache connection. |
+| `CORS_ORIGINS` | JSON array of exact frontend origins. Defaults to local port 3000 origins. |
+| `COOKIE_SECURE` | Defaults to `true`; use `false` only for local HTTP development. |
+| `DESKTOP_OPERATOR_USER_ID` | Optional UUID permitted to use shared desktop/credential/inbox functions. |
+| `ENABLE_SANDBOX_ATS` | Defaults to `false`; enable only for isolated development/test servers. |
+| `GEMINI_API_KEY` | Optional provider key for AI features. |
+| `NEXT_PUBLIC_API_URL` | Frontend build-time API origin, optionally ending in `/api/v1`. |
 
-| Method | Endpoint Path | Scope Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/v1/applications/apply` | Trigger single portal auto-apply pipeline |
-| `POST` | `/api/v1/applications/launch-session` | Open headful Chrome session for portal login |
-| `POST` | `/api/v1/applications/verify-login` | Confirm manual candidate portal session authentication |
-| `GET` | `/api/v1/applications/browser-status` | Query live Playwright browser process telemetry |
-| `GET` | `/api/v1/applications` | List active job applications & GraphNode records |
-| `POST` | `/api/v1/resumes/upload` | Ingest candidate resume PDF/DOCX |
+Rotating `SECRET_KEY` invalidates access tokens and makes existing vault entries unreadable. Re-enter those credentials under the new key. Legacy records without a verified owner are not automatically assigned to a new account.
 
----
+## Verification
 
-## 5. Automated Test Suite
+Focused backend regressions run without PostgreSQL, live AI calls or job-portal actions:
 
-Run the complete 129-test regression suite covering JobPilot Parts 1 through 7:
 ```bash
 cd backend
-venv\Scripts\pytest
+PYTHONPATH=. python -m pytest app/tests/test_auth_boundaries.py app/tests/test_stability_sprint.py app/tests/test_sandbox_ats_e2e.py -q
 ```
 
----
+In PowerShell, set `$env:PYTHONPATH = "."` before invoking `python -m pytest` with the same paths. Database-backed JobPilot tests need a separate initialized test database.
 
-## 📜 License
-Privately developed for **CareerOS Infinity Platform**. All rights reserved.
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+GitHub Actions runs these focused tests and the frontend production build. They do not certify live portal automation or deployment readiness.
+
+## Deployment notes
+
+Set the frontend API URL **before** its production build, allow that frontend origin on the backend, and use HTTPS. `render.yaml` contains service configuration; database migration and actual deployment verification remain necessary. The existing GitHub Pages workflow expects a static export that the current dynamic Next.js app does not produce.
+
+## License
+
+Privately developed for CareerOS Infinity Platform. All rights reserved.

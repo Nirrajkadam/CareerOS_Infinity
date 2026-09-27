@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest } from '../../lib/apiClient';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { 
@@ -39,7 +41,7 @@ export default function JobsFeedPage() {
 
   async function fetchSourceHealth() {
     try {
-      const res = await fetch('http://localhost:8000/api/v1/jobs/source-health');
+      const res = await apiRequest('/api/v1/jobs/source-health');
       if (res.ok) {
         const data = await res.json();
         setSourceHealth(data);
@@ -52,7 +54,7 @@ export default function JobsFeedPage() {
   async function fetchJobs() {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/jobs/discover?query=${encodeURIComponent(query)}&india_only=${indiaOnly}`);
+      const res = await apiRequest(`/api/v1/jobs/discover?query=${encodeURIComponent(query)}&india_only=${indiaOnly}`);
       if (res.ok) {
         const data = await res.json();
         setJobs(data);

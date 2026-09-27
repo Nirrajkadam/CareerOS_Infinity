@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '../../lib/apiClient';
+
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
@@ -14,36 +16,23 @@ export default function ApplicationTrackerPage() {
   const [applications, setApplications] = useState<any[]>([]);
   const [filter, setFilter] = useState<'ALL' | 'NEEDS_APPROVAL' | 'IN_PROGRESS' | 'VERIFIED' | 'FAILED'>('ALL');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchApplications();
   }, []);
 
   async function fetchApplications() {
+    setLoading(true);
+    setError('');
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setApplications(data);
-        } else {
-          setApplications([
-            { id: 'app-101', role: 'Data Engineer', company: 'Postman', status: 'SUBMITTED', created_at: '2026-08-14' },
-            { id: 'app-102', role: 'Senior Data Engineer', company: 'GitLab', status: 'AWAITING_FINAL_APPROVAL', created_at: '2026-08-15' },
-            { id: 'app-103', role: 'Backend Engineer', company: 'Figma', status: 'SUBMITTED_VERIFIED', created_at: '2026-08-12' },
-          ]);
-        }
-      }
+      const data = await apiFetch<any[]>('/api/v1/applications');
+      if (!Array.isArray(data)) throw new Error('Invalid application data received');
+      setApplications(data);
     } catch (err) {
-      console.error('Failed to fetch applications:', err);
-      setApplications([
-        { id: 'app-101', role: 'Data Engineer', company: 'Postman', status: 'SUBMITTED', created_at: '2026-08-14' },
-        { id: 'app-102', role: 'Senior Data Engineer', company: 'GitLab', status: 'AWAITING_FINAL_APPROVAL', created_at: '2026-08-15' },
-        { id: 'app-103', role: 'Backend Engineer', company: 'Figma', status: 'SUBMITTED_VERIFIED', created_at: '2026-08-12' },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+      setApplications([]);
+      setError(err instanceof Error ? err.message : 'Unable to load applications.');
+    } finally { setLoading(false); }
   }
 
   // Filter application items
@@ -81,8 +70,9 @@ export default function ApplicationTrackerPage() {
         </div>
       </div>
 
+      {error && <div role="alert" className="rounded-lg border border-red-900 p-4 text-sm text-red-200">{error} <button onClick={fetchApplications} className="ml-4 underline">Retry</button></div>}
       {/* Filter Tabs */}
-      <div className="flex gap-2 border-b border-neutral-800 pb-3">
+      <div className="flex flex-wrap gap-2 border-b border-neutral-800 pb-3">
         {[
           { key: 'ALL', label: 'All Applications' },
           { key: 'NEEDS_APPROVAL', label: 'Needs Your Approval' },
@@ -123,11 +113,11 @@ export default function ApplicationTrackerPage() {
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-white">{app.role || 'Data Engineer'}</span>
+                    <span className="text-sm font-bold text-white">{app.role || 'Role unavailable'}</span>
                     <span className="text-xs text-neutral-400 font-normal">at {app.company || 'Target Employer'}</span>
                   </div>
                   <div className="text-[10px] text-neutral-500 flex items-center gap-3">
-                    <span>Applied: {app.created_at || 'Recently'}</span>
+                    <span>Created: {app.created_at || 'Unavailable'}</span>
                   </div>
                 </div>
 

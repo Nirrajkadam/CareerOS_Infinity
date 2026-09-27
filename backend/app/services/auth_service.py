@@ -2,7 +2,7 @@ import logging
 import datetime
 import uuid
 from typing import Optional, Tuple
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.core.exceptions import AuthenticationError
@@ -54,7 +54,7 @@ class AuthService:
         user_repo = UserRepository(session)
         user = await user_repo.get_by_email(email)
         
-        if not user or not verify_password(password, user.hashed_password):
+        if not user or not user.is_active or user.is_deleted or not verify_password(password, user.hashed_password):
             logger.warning(f"Authentication failed for email: {email}")
             raise AuthenticationError("Incorrect email or password.")
             
@@ -98,9 +98,20 @@ class AuthService:
             logger.warning("Session refresh failed: invalid or expired refresh token.")
             raise AuthenticationError("Invalid or expired session refresh token.")
             
+        user = await UserRepository(session).get_by_id(ref_token.user_id)
+        if not user or not user.is_active or user.is_deleted:
+            raise AuthenticationError("User identity is unavailable.")
+
         # Issue new access token
         access_token = create_access_token(subject=str(ref_token.user_id))
         return access_token
+
+    @staticmethod
+    async def revoke_refresh_token(session: AsyncSession, token_str: str) -> None:
+        await session.execute(
+            update(RefreshToken).where(RefreshToken.token == token_str).values(is_revoked=True)
+        )
+        await session.flush()
 
     @staticmethod
     async def write_audit_log(

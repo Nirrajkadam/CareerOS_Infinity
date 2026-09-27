@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '../../../lib/apiClient';
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -23,6 +25,8 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const company = searchParams.get('company') || 'Target Employer';
   const portalUrl = searchParams.get('url') || 'https://www.naukri.com/data-engineer-jobs';
 
+  const [prepareError, setPrepareError] = useState('');
+  const [preparing, setPreparing] = useState(false);
   const [tailoring, setTailoring] = useState(false);
   const [tailoredResume, setTailoredResume] = useState<string | null>(null);
 
@@ -52,25 +56,16 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const matchScore = isIntern ? 92 : isSecurity ? 68 : isAI ? 74 : isBackend ? 85 : 88;
 
   async function handlePrepareApplication() {
+    setPreparing(true);
+    setPrepareError('');
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          company,
-          role: title,
-          portal_url: portalUrl,
-        })
+      const data = await apiFetch<{ application_id: string }>('/api/v1/applications/apply', {
+        method: 'POST', body: JSON.stringify({ company, role: title, portal_url: portalUrl }),
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        router.push(`/applications/${data.job_id || params.id}`);
-      }
+      router.push(`/applications/${encodeURIComponent(data.application_id)}`);
     } catch (err) {
-      console.error('Failed to prepare application:', err);
-      router.push('/applications');
-    }
+      setPrepareError(err instanceof Error ? err.message : 'Unable to prepare application.');
+    } finally { setPreparing(false); }
   }
 
   async function handleGenerateTailoring() {
@@ -95,7 +90,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           `Engineered candidate specializing in ${title} roles with expertise in ${matchedKeywords.slice(0, 3).join(', ')}.\n\n` +
           `MATCHED KEYWORDS HIGHLIGHTED:\n` +
           `• Matched: ${matchedKeywords.join(', ')}\n` +
-          `• Addressing Target Requirements: ${missingKeywords.join(', ')} (Grounded TruthGuard Verified)`
+          `• Addressing Target Requirements: ${missingKeywords.join(', ')} (Example only — verify against your own experience)`
         );
       }
     } finally {
@@ -105,6 +100,8 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="space-y-6">
+      <p role="note" className="rounded-lg border border-amber-800 bg-amber-950/30 p-4 text-sm text-amber-200">Preview assessment: scores, keywords, and resume text on this page are illustrative. They are not calculated from your uploaded resume. Review the employer listing before preparing an application.</p>
+      {prepareError && <p role="alert" className="text-sm text-red-300">{prepareError}</p>}
       
       {/* Back Button */}
       <Link href="/jobs" className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 font-medium">
@@ -132,7 +129,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
         {/* Action Bar */}
         <div className="flex items-center gap-3 pt-3 border-t border-neutral-800">
           <button
-            onClick={handlePrepareApplication}
+            onClick={handlePrepareApplication} disabled={preparing}
             className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-emerald-900/30"
           >
             <Send size={14} /> Prepare Application & Route to Tracker

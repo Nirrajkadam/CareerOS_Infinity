@@ -66,7 +66,7 @@ app = FastAPI(
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict in production environments
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -112,7 +112,8 @@ app.include_router(jobpilot_router, prefix=settings.API_V1_STR)
 app.include_router(tracking_router, prefix=settings.API_V1_STR)
 app.include_router(interviews_router, prefix=settings.API_V1_STR)
 app.include_router(career_analytics_router, prefix=settings.API_V1_STR)
-app.include_router(test_ats_router, prefix=settings.API_V1_STR)
+if settings.ENABLE_SANDBOX_ATS:
+    app.include_router(test_ats_router, prefix=settings.API_V1_STR)
 
 @app.websocket("/ws/interviews/{session_id}")
 async def mock_interview_websocket(websocket: WebSocket, session_id: str):

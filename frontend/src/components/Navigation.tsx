@@ -66,12 +66,18 @@ export default function Navigation() {
           </nav>
 
           {/* Trust Invariant Status */}
-          <div className="flex items-center gap-2 bg-neutral-950 px-3 py-1.5 rounded-full border border-neutral-800 text-[11px]">
+          <div className="hidden sm:flex items-center gap-2 bg-neutral-950 px-3 py-1.5 rounded-full border border-neutral-800 text-[11px]">
             <ShieldCheck size={14} className="text-emerald-500" />
             <span className="text-neutral-300 font-medium">TruthGuard Active</span>
           </div>
 
         </div>
+        <nav aria-label="Mobile navigation" className="flex gap-2 overflow-x-auto pb-3 md:hidden">
+          {navItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href ? 'page' : undefined}
+            className={`shrink-0 rounded-lg px-3 py-2 text-xs ${pathname === item.href ? 'bg-neutral-800 text-emerald-400' : 'text-neutral-400'}`}>
+            {item.name}
+          </Link>)}
+        </nav>
       </div>
     </header>
   );
