@@ -78,31 +78,26 @@ class ApplicationService:
 
         # ── 2. Job Risk Evaluation ──────────────────────────────────────────
         risk_res = JobRiskService.evaluate_risk(
-            title=job.title, company=job.company, description=job.description, source_url=job.canonical_url
+            title=job.title, company=job.company, description=job.description, source_url=job.source_url
         )
 
         # ── 3. Calculate Fit & Priority Scores ──────────────────────────────
-        skills_res = await session.execute(
-            select(UserSkill).filter(
-                UserSkill.user_id == user.id, UserSkill.status.in_(["VERIFIED", "USER_PROVIDED"])
-            )
-        )
-        user_skills = [getattr(s, 'name', getattr(s, 'skill_name', '')) for s in skills_res.scalars().all()]
-        if not user_skills:
-            user_skills = ["Software Engineering"]
-
         match_res = await JobMatchingService.compute_match(
-            session=session, user_id=user.id, job_id=job_uuid
+            session=session, user=user, job=job
         )
-        fit_score = match_res.get("overall_match_score", 75.0)
-        ats_score = match_res.get("ats_match_score", 80.0)
-        missing_skills = match_res.get("missing_skills", {})
+        fit_score = match_res.overall_fit_score
+        ats_score = match_res.ats_score
+        missing_skills = {
+            "missing_required": match_res.missing_required_skills or [],
+            "missing_preferred": match_res.missing_preferred_skills or [],
+        }
+        matched_skills = match_res.matched_skills or []
 
         prio_res = ApplicationPriorityService.calculate_priority(
             job_fit_score=fit_score,
             ats_score=ats_score,
-            matched_skills_count=len(match_res.get("matched_skills", [])),
-            total_required_skills=max(len(match_res.get("matched_skills", [])) + len(missing_skills.get("missing_required", [])), 1),
+            matched_skills_count=len(matched_skills),
+            total_required_skills=max(len(matched_skills) + len(missing_skills["missing_required"]), 1),
             risk_status=risk_res["risk_status"],
         )
 
@@ -116,8 +111,8 @@ class ApplicationService:
             status=initial_status,
             application_stage="UNSUBMITTED",
             source=source,
-            source_url=job.canonical_url,
-            application_url=job.canonical_url,
+            source_url=job.source_url,
+            application_url=job.source_url,
             company=job.company,
             role=job.title,
             location=job.location,

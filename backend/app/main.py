@@ -52,7 +52,7 @@ logger = logging.getLogger("app.main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # DDL schema initialization bypassed locally; schemas created via SQL Editor
+    # Schema changes are applied explicitly with `alembic upgrade head` before startup.
     yield
 
 app = FastAPI(

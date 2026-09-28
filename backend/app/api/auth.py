@@ -36,15 +36,12 @@ async def register(
         password=payload.password,
         full_name=payload.full_name
     )
-    try:
-        await AuthService.write_audit_log(
-            session=session,
-            action="USER_REGISTRATION",
-            user_id=user.id,
-            details=f"Email: {user.email}"
-        )
-    except Exception as audit_err:
-        logger.warning(f"Audit log write skipped: {audit_err}")
+    await AuthService.write_audit_log(
+        session=session,
+        action="USER_REGISTRATION",
+        user_id=user.id,
+        details=f"Email: {user.email}"
+    )
     return {"user_id": str(user.id), "email": user.email, "message": "User registered successfully."}
 
 @router.post("/login", status_code=status.HTTP_200_OK)
@@ -65,31 +62,25 @@ async def login(
         password=payload.password
     )
     
-    # Create and write refresh token
-    try:
-        refresh_token = await AuthService.create_session_refresh_token(
-            session=session,
-            user_id=user.id
-        )
-        
-        # Set HttpOnly cookie for session security
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_token,
-            httponly=True,
-            secure=settings.COOKIE_SECURE,
-            samesite="strict",
-            max_age=30 * 86400  # 30 days
-        )
-        
-        await AuthService.write_audit_log(
-            session=session,
-            action="USER_LOGIN_SUCCESS",
-            user_id=user.id,
-            ip_address=request.client.host if request.client else None
-        )
-    except Exception as sess_err:
-        logger.warning(f"Session refresh token / audit write skipped: {sess_err}")
+    # Session persistence must succeed before reporting a successful login.
+    refresh_token = await AuthService.create_session_refresh_token(
+        session=session,
+        user_id=user.id
+    )
+    await AuthService.write_audit_log(
+        session=session,
+        action="USER_LOGIN_SUCCESS",
+        user_id=user.id,
+        ip_address=request.client.host if request.client else None
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="strict",
+        max_age=30 * 86400  # 30 days
+    )
     
     return {
         "access_token": access_token,
