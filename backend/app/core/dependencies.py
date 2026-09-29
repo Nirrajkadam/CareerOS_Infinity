@@ -23,40 +23,29 @@ async def get_current_user(
     Dependency resolving the active authenticated user object from valid JWT token.
     Raises HTTP 401 Unauthorized if token is invalid, expired, or missing.
     """
-    import uuid
+    from uuid import UUID
+    from fastapi import HTTPException, status
     try:
-        user = await user_repo.get_by_id(token_subject)
-        if not user:
-            # Handle standard mock UUID if token subject explicitly signed for test runner
-            if token_subject == "00000000-0000-0000-0000-000000000000":
-                user = User(
-                    id=uuid.UUID(token_subject),
-                    email="mockuser@careeros.local",
-                    full_name="Mock Developer",
-                    hashed_password="mock_password",
-                    role=UserRole.MEMBER,
-                    is_active=True
-                )
-                user_repo.session.add(user)
-                await user_repo.session.flush()
-                return user
-            from fastapi import HTTPException, status
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User identity associated with token not found",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return user
-    except Exception as err:
-        from fastapi import HTTPException, status
-        if isinstance(err, HTTPException):
-            raise err
-        logger.error(f"get_current_user lookup failure: {err}")
+        user_id = UUID(token_subject)
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=401, detail="Invalid user identity", headers={"WWW-Authenticate": "Bearer"})
+    user = await user_repo.get_by_id(user_id)
+    if not user or not user.is_active or user.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="User identity is unavailable",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    return user
+
+
+def get_desktop_operator(current_user: User = Depends(get_current_user)) -> User:
+    """Limit shared browser profiles and inbox credentials to their configured owner."""
+    from app.core.config import settings
+    if settings.DESKTOP_OPERATOR_USER_ID != current_user.id:
+        raise PermissionDenied("Desktop automation is available only to the configured operator.")
+    return current_user
+
 
 class RoleChecker:
     """

@@ -33,6 +33,10 @@ from app.models.audit import AuditLog
 from app.models.auth import RefreshToken
 from app.models.job import JobPosting
 from app.models.master_profile import MasterProfile, Education, Experience, Project, Certification, UserSkill, Evidence, CareerGoal
+from app.models import (
+    application, application_tracking, communication, interview,
+    job_discovery, job_intelligence, job_search_goal, tailoring,
+)
 
 target_metadata = Base.metadata
 

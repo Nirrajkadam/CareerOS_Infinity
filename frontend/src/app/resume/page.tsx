@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest } from '../../lib/apiClient';
+
 import React, { useState, useEffect } from 'react';
 import { 
   Upload, 
@@ -29,7 +31,7 @@ export default function ResumeManagementPage() {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      const res = await fetch('http://localhost:8000/api/v1/resumes', { headers });
+      const res = await apiRequest('/api/v1/resumes', { headers });
       if (res.ok) {
         const data = await res.json();
         setResumes(data);
@@ -60,7 +62,7 @@ export default function ResumeManagementPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch('http://localhost:8000/api/v1/resumes/upload', {
+      const res = await apiRequest('/api/v1/resumes/upload', {
         method: 'POST',
         headers,
         body: formData,

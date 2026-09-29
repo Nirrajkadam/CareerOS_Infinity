@@ -32,7 +32,9 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@postgres:5432/careeros_db
       - REDIS_URL=redis://redis:6379/0
-      - UAT_MODE=true
+      - SECRET_KEY=${SECRET_KEY:?Set a private SECRET_KEY before starting}
+      - COOKIE_SECURE=false
+      - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
     depends_on:
       - postgres
       - redis
@@ -41,6 +43,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     container_name: careeros_frontend
     restart: always
     ports:

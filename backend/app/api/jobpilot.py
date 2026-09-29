@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_desktop_operator
 from app.models.user import User
 from app.models.job import JobPosting
 from app.models.job_discovery import JobPipelineControl, SkillGapAggregate
@@ -123,111 +123,15 @@ async def voice_agent_command_endpoint(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session)
 ) -> dict:
-    """
-    Executes real backend AI agent actions for natural voice/text commands.
-    Includes automatic error detection & self-healing logs.
-    """
-    raw_prompt = payload.get("command") or payload.get("prompt") or ""
-    command_text = raw_prompt.lower().strip()
-    logger.info(f"JobPilot VoiceAgent: Received prompt = '{raw_prompt}'")
-
-    logs = [f"VOICE_AGENT_RECEIVED: '{raw_prompt}'"]
-    action_type = "UNKNOWN"
-    agent_reply = ""
-    navigate_url = None
-
+    """Compatibility endpoint for the bounded, per-account assistant."""
+    from app.services.career_assistant import CareerAssistant, ChatRequest
+    from pydantic import ValidationError
     try:
-        # Route 1: Discovery / Search jobs
-        if any(w in command_text for w in ["job", "search", "find", "discover"]):
-            action_type = "DISCOVER_JOBS"
-            query = "Data Engineer" if "data" in command_text else "Software Engineer"
-            logs.append(f"AI_PARSED_INTENT: Discover jobs for '{query}'")
-            res = await JobDiscoveryService.run_discovery(session, current_user, query, ["company"], 10)
-            count = res.get("discovered_count", 0)
-            agent_reply = f"AI Agent queried authentic live sources and found {count} jobs matching '{query}'."
-            navigate_url = f"/jobs?query={query}"
-            logs.append(f"BACKEND_EXECUTED: Found {count} live ATS listings.")
-
-        # Route 2: Email Verification
-        elif any(w in command_text for w in ["verify", "email", "sync", "inbox"]):
-            action_type = "SYNC_EMAILS"
-            logs.append("AI_PARSED_INTENT: Trigger IMAP Email Sync")
-            from app.services.email_service import EmailSyncService
-            synced = await EmailSyncService.sync_confirmation_emails(session, str(current_user.id))
-            agent_reply = f"AI Agent queried candidate IMAP inbox and verified {len(synced)} employer receipts."
-            navigate_url = "/applications"
-            logs.append(f"BACKEND_EXECUTED: IMAP sync verified {len(synced)} receipt records.")
-
-        # Route 3: Browser Session / Headful Chrome
-        elif any(w in command_text for w in ["chrome", "browser", "naukri", "linkedin", "apply"]):
-            action_type = "LAUNCH_BROWSER"
-            portal = "linkedin" if "linkedin" in command_text else "naukri"
-            logs.append(f"AI_PARSED_INTENT: Launch headful Playwright session for '{portal}'")
-            from app.services.browser_automation import BrowserAutomationService
-            import asyncio
-            asyncio.create_task(BrowserAutomationService.launch_headful_session(portal))
-            agent_reply = f"AI Agent launched headful Chrome browser window for {portal}. Candidate login active."
-            navigate_url = "/settings/credentials"
-            logs.append(f"BACKEND_EXECUTED: Headful browser window active for {portal}.")
-
-        # Route 4: Profile / Skills
-        elif any(w in command_text for w in ["profile", "skill", "resume", "education"]):
-            action_type = "NAVIGATE_PROFILE"
-            logs.append("AI_PARSED_INTENT: Master Profile & Skills Audit")
-            agent_reply = "Opening Master Candidate Profile with your verified PG-DBDA and skills."
-            navigate_url = "/profile"
-            logs.append("BACKEND_EXECUTED: Master Profile state retrieved.")
-
-        # Route 5: Full Autonomous Project Management & Self-Correction
-        elif any(w in command_text for w in ["project", "handle", "everything", "manage", "all", "fix", "solve", "error", "heal"]):
-            action_type = "FULL_PROJECT_ORCHESTRATOR"
-            logs.append("AI_PARSED_INTENT: Autonomous Full Project Management & Self-Correction")
-            
-            # Step A: Audit & Discover Jobs
-            d_res = await JobDiscoveryService.run_discovery(session, current_user, "Data Engineer", ["company"], 10)
-            d_count = d_res.get("discovered_count", 0)
-            logs.append(f"ORCHESTRATOR_STEP_1: Audited live job sources ➔ Found {d_count} postings.")
-
-            # Step B: Audit & Sync Emails
-            from app.services.email_service import EmailSyncService
-            e_res = await EmailSyncService.sync_confirmation_emails(session, str(current_user.id))
-            logs.append(f"ORCHESTRATOR_STEP_2: Audited candidate IMAP inbox ➔ Synced {len(e_res)} employer receipts.")
-
-            # Step C: Self-Heal any errors
-            logs.append("ORCHESTRATOR_STEP_3: Self-healing audit completed. Zero errors detected across services.")
-            agent_reply = f"Autonomous AI Project Manager is handling your entire system! Discovered {d_count} live jobs, verified {len(e_res)} receipts, and self-healed all pipelines smoothly."
-            navigate_url = "/"
-
-        else:
-            action_type = "GENERAL_ASSIST"
-            logs.append("AI_PARSED_INTENT: General Assistant Query")
-            agent_reply = f"AI Agent processed command: '{raw_prompt}'. Ready for next instruction."
-            logs.append("BACKEND_EXECUTED: General agent response generated.")
-
-        return {
-            "status": "ok",
-            "command": raw_prompt,
-            "action_type": action_type,
-            "agent_reply": agent_reply,
-            "navigate_url": navigate_url,
-            "self_healing_status": "EXECUTED_CLEANLY",
-            "logs": logs
-        }
-
-    except Exception as err:
-        logger.error(f"JobPilot VoiceAgent error: {err}", exc_info=True)
-        heal_msg = f"AI Agent detected runtime exception ({err}). Self-healing fallback triggered safely."
-        logs.append(f"ERROR_DETECTED: {err}")
-        logs.append("SELF_HEALED: Applied safe state fallback, zero crash guarantee enforced.")
-        return {
-            "status": "HEALED",
-            "command": raw_prompt,
-            "action_type": "ERROR_SELF_HEALED",
-            "agent_reply": heal_msg,
-            "navigate_url": None,
-            "self_healing_status": "AUTO_HEALED",
-            "logs": logs
-        }
+        request = ChatRequest(message=payload.get("command") or payload.get("prompt") or "")
+    except ValidationError:
+        raise HTTPException(422, "Provide an instruction between 1 and 2000 characters.")
+    result = await CareerAssistant.run(request, session, current_user)
+    return {**result, "agent_reply": result["reply"], "logs": [step["summary"] for step in result["steps"]]}
 
 
 @router.get("/dashboard", status_code=status.HTTP_200_OK)

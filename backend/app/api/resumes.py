@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.resume import Resume
 from sqlalchemy import update, select
 from app.services.profile_manager import ProfileManager
+from app.services.resume_fallback import extract_fallback_profile
 
 logger = logging.getLogger("app.api.resumes")
 router = APIRouter(prefix="/resumes", tags=["Resume Intelligence"])
@@ -44,29 +45,7 @@ async def process_master_resume_upload(
     except Exception as ai_err:
         logger.warning(f"AI Gateway parser failed ({ai_err}), using rule-based profile extraction.")
         
-        extracted_skills = []
-        common_skills = [
-            "Python", "Java", "C++", "C", "JavaScript", "TypeScript", "React", "Next.js", 
-            "FastAPI", "Node.js", "PostgreSQL", "MySQL", "MongoDB", "Docker", "Kubernetes", 
-            "AWS", "Git", "Linux", "System Design", "SQL", "AIML", "ETL", "Celery", "Redis"
-        ]
-        for sk in common_skills:
-            if sk.lower() in clean_text.lower():
-                extracted_skills.append({"name": sk, "category": "general", "level": "Intermediate"})
-                
-        if not extracted_skills:
-            extracted_skills = [
-                {"name": "Python", "category": "Languages", "level": "Expert"},
-                {"name": "FastAPI", "category": "Frameworks", "level": "Expert"},
-                {"name": "System Design", "category": "Architecture", "level": "Intermediate"},
-                {"name": "PostgreSQL", "category": "Databases", "level": "Expert"}
-            ]
-
-        profile_data = UniversalProfile(
-            profile_metadata={"source": file.filename},
-            competencies=extracted_skills,
-            history=[]
-        )
+        profile_data = extract_fallback_profile(clean_text, file.filename or 'resume')
 
     skills_str = ", ".join([skill.name for skill in profile_data.competencies])
     embeddings_payload = f"Name: {profile_data.profile_metadata.source}. Skills: {skills_str}"
@@ -118,7 +97,7 @@ async def process_master_resume_upload(
             session, current_user.id,
             name=skill.name,
             category=skill.category or "general",
-            proficiency=skill.level or "Intermediate",
+            proficiency=skill.level or "Unknown",
             status="USER_PROVIDED"
         )
 

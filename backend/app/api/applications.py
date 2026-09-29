@@ -20,7 +20,7 @@ Endpoints:
 - GET /api/v1/applications/{id}/events
 - POST /api/v1/applications/{id}/manual-action-complete
 
-All endpoints strictly enforce `current_user.id == resource.user_id` BOLA isolation.
+Application records are scoped to their owner. Shared desktop resources require the configured operator.
 """
 import logging
 import uuid
@@ -31,14 +31,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_desktop_operator
 from app.models.user import User
 from app.models.application import Application, ApplicationStatusHistory
 from app.services.application_service import ApplicationService
 from app.services.application_analytics_service import ApplicationAnalyticsService
 
 logger = logging.getLogger("app.api.applications")
-router = APIRouter(prefix="/applications", tags=["Job Applications Engine"])
+router = APIRouter(prefix="/applications", tags=["Job Applications Engine"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -97,11 +97,11 @@ async def list_applications_endpoint(
             "logs": a.logs if hasattr(a, "logs") and a.logs else [
                 f"Application status: {a.status}",
                 f"Stage: {a.application_stage or 'INGESTED'}",
-                f"Priority score: {a.priority_score or 85}/100"
+                f"Priority score: {a.priority_score if a.priority_score is not None else 'unavailable'}"
             ],
             "created_at": a.created_at.isoformat() if a.created_at else None,
             "submitted_at": a.submitted_at.isoformat() if a.submitted_at else None,
-            "applied_at": a.submitted_at.isoformat() if a.submitted_at else (a.created_at.isoformat() if a.created_at else None),
+            "applied_at": a.submitted_at.isoformat() if a.submitted_at else None,
         }
         for a in apps
     ]
@@ -109,16 +109,16 @@ async def list_applications_endpoint(
     # Include GraphNode APPLICATION entities (used by autonomous job hunter agent live scraper), strictly scoped to current_user
     try:
         from app.models.graph import GraphNode
-        q_graph = select(GraphNode.id, GraphNode.properties, GraphNode.created_at).filter(GraphNode.entity_type == "APPLICATION").order_by(GraphNode.created_at.desc()).limit(50)
+        q_graph = select(GraphNode.id, GraphNode.properties, GraphNode.created_at).filter(GraphNode.entity_type == "APPLICATION", GraphNode.properties["user_id"].astext == str(current_user.id)).order_by(GraphNode.created_at.desc()).limit(50)
         res_graph = await session.execute(q_graph)
         graph_rows = res_graph.all()
 
         existing_ids = {a["id"] for a in app_list}
         for g_id_val, g_props, g_created_at in graph_rows:
             props = g_props or {}
-            # Scope to user if user_id property is present on node
+            # Legacy nodes without an explicit owner must not be exposed to every user.
             node_user_id = props.get("user_id")
-            if node_user_id and str(node_user_id) != str(current_user.id):
+            if str(node_user_id) != str(current_user.id):
                 continue
             g_id = props.get("id") or g_id_val
             if g_id not in existing_ids:
@@ -126,11 +126,13 @@ async def list_applications_endpoint(
                     "id": str(g_id),
                     "company": props.get("company", "Target Company"),
                     "role": props.get("role", "Target Role"),
-                    "status": props.get("status", "SUBMITTED"),
+                    "status": props.get("status", "UNKNOWN"),
                     "logs": props.get("logs", ["Application pipeline active."]),
                     "tailored_resume": props.get("tailored_resume", ""),
                     "created_at": g_created_at.isoformat() if g_created_at else None,
-                    "applied_at": props.get("applied_at") or (g_created_at.isoformat() if g_created_at else None),
+                    "applied_at": props.get("applied_at"),
+                    "submitted_at": props.get("submitted_at"),
+                    "ats_score": props.get("ats_score"),
                 })
                 existing_ids.add(g_id)
     except Exception as g_err:
@@ -158,7 +160,7 @@ async def get_market_skill_gaps_endpoint(
 # ── Portal Vault & Browser Session Endpoints (Static Paths before /{app_id}) ─
 
 @router.post("/launch-session", status_code=status.HTTP_200_OK)
-async def launch_session_endpoint(payload: dict):
+async def launch_session_endpoint(payload: dict, current_user: User = Depends(get_desktop_operator)):
     """
     Launches a headful Playwright browser session for candidate manual login/OTP/Captcha solving.
     """
@@ -175,6 +177,7 @@ async def launch_session_endpoint(payload: dict):
 @router.post("/credentials", status_code=status.HTTP_200_OK)
 async def save_credentials_endpoint(
     payload: dict,
+    current_user: User = Depends(get_desktop_operator),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -194,6 +197,7 @@ async def save_credentials_endpoint(
 
 @router.get("/credentials", status_code=status.HTTP_200_OK)
 async def get_credentials_endpoint(
+    current_user: User = Depends(get_desktop_operator),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -219,7 +223,7 @@ async def get_credentials_endpoint(
 
 
 @router.get("/browser-status", status_code=status.HTTP_200_OK)
-async def get_browser_status_endpoint():
+async def get_browser_status_endpoint(current_user: User = Depends(get_desktop_operator)):
     """
     Returns empirical backend Playwright browser context connection status and profile states.
     """
@@ -228,7 +232,7 @@ async def get_browser_status_endpoint():
 
 
 @router.post("/verify-login", status_code=status.HTTP_200_OK)
-async def verify_login_endpoint(payload: dict = None):
+async def verify_login_endpoint(payload: dict = None, current_user: User = Depends(get_desktop_operator)):
     """
     Re-checks authentication status inside active headful browser window when candidate clicks 'I HAVE LOGGED IN'.
     """
@@ -240,10 +244,11 @@ async def verify_login_endpoint(payload: dict = None):
 @router.post("/apply", status_code=status.HTTP_200_OK)
 async def apply_single_portal_endpoint(
     payload: dict,
+    current_user: User = Depends(get_desktop_operator),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
-    Triggers single-portal application automation for target role & listing URL.
+    Prepares a candidate-owned record for the manual portal workflow.
     """
     company = payload.get("company")
     role = payload.get("role")
@@ -251,69 +256,41 @@ async def apply_single_portal_endpoint(
     if not company or not role or not portal_url:
         raise HTTPException(status_code=400, detail="company, role, and portal_url are required")
 
-    try:
-        from app.services.browser_automation import BrowserAutomationService
-        job_id = str(uuid.uuid4())
-
-        try:
-            from app.services.job_ingestion import JobIngestionService
-            ingestion_service = JobIngestionService(session)
-            result = await ingestion_service.ingest(
-                jd_text=f"Single Portal Application for {role} at {company}",
-                source_url=portal_url
-            )
-            if result and result.get("job_id"):
-                job_id = str(result.get("job_id"))
-        except Exception as ing_err:
-            logger.warning(f"Single apply ingestion fallback active: {ing_err}")
-
-        asyncio.create_task(
-            BrowserAutomationService.run_auto_apply(
-                session=session,
-                user_id="00000000-0000-0000-0000-000000000000",
-                company=company,
-                role=role,
-                portal_url=portal_url,
-                optimized_resume_path=""
-            )
-        )
-
-        return {
-            "status": "ok",
-            "message": f"Application bot launched for {role} at {company}",
-            "job_id": job_id
-        }
-    except Exception as e:
-        logger.error(f"Single apply error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    from app.services.browser_automation import BrowserAutomationService
+    application_id = await BrowserAutomationService.run_auto_apply(
+        session=session,
+        user_id=str(current_user.id),
+        company=company,
+        role=role,
+        portal_url=portal_url,
+        optimized_resume_path="",
+    )
+    return {
+        "status": "READY_TO_SUBMIT",
+        "message": "Application record prepared. Employer submission has not occurred.",
+        "application_id": application_id,
+    }
 
 
 @router.post("/autonomous-run", status_code=status.HTTP_200_OK)
 async def autonomous_run_endpoint(
     payload: dict,
+    current_user: User = Depends(get_desktop_operator),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
-    Triggers fully autonomous job discovery & submission loop cycle.
+    Rejects the legacy sample feed until it is replaced with verified listings.
     """
-    keywords = payload.get("keywords", "Python")
-    limit = int(payload.get("limit", 5))
-
-    try:
-        from autonomous_job_hunter import run_autonomous_loop
-        asyncio.create_task(run_autonomous_loop(keywords, limit))
-        return {
-            "status": "ok",
-            "message": f"Autonomous Job Hunter Agent activated in background matching keywords: '{keywords}'"
-        }
-    except Exception as e:
-        logger.error(f"Autonomous run error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(
+        status_code=409,
+        detail="The legacy autonomous feed contains sample listings. Use verified job discovery and approve each application.",
+    )
 
 
 @router.post("/sync-email", status_code=status.HTTP_200_OK)
 async def sync_email_endpoint(
     payload: dict = None,
+    current_user: User = Depends(get_desktop_operator),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -328,7 +305,7 @@ async def sync_email_endpoint(
         from app.services.email_service import EmailSyncService
         synced = await EmailSyncService.sync_confirmation_emails(
             session=session,
-            user_id="00000000-0000-0000-0000-000000000000",
+            user_id=str(current_user.id),
             email_address=email_address,
             app_password=app_password,
             company_filter=company
@@ -349,32 +326,32 @@ async def sync_email_endpoint(
 @router.post("/sync-emails", status_code=status.HTTP_200_OK)
 async def sync_emails_alias_endpoint(
     payload: dict = None,
+    current_user: User = Depends(get_desktop_operator),
     session: AsyncSession = Depends(get_db_session)
 ):
-    return await sync_email_endpoint(payload=payload, session=session)
+    return await sync_email_endpoint(payload=payload, current_user=current_user, session=session)
 
 
 @router.post("/emergency-stop", status_code=status.HTTP_200_OK)
 async def emergency_stop_applications_endpoint(
     payload: dict = None,
+    current_user: User = Depends(get_desktop_operator),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
     Emergency Stop trigger for all active application automation runs.
     """
     reason = payload.get("reason") if payload else "User activated Emergency Stop"
-    from app.services.jobpilot.job_scheduler import JobScheduler
-    from app.models.user import User
-    res = await session.execute(select(User).filter(User.id == uuid.UUID("00000000-0000-0000-0000-000000000000")))
-    user = res.scalar_one_or_none()
-    if user:
-        await JobScheduler.set_emergency_stop(session, user, reason=reason)
-    return {"status": "EMERGENCY_STOPPED", "message": f"Automation stopped safely: {reason}"}
+    from app.services.job_scheduler import JobScheduler
+    from app.services.browser_automation import BrowserAutomationService
+    BrowserAutomationService.set_emergency_stop(True)
+    return await JobScheduler.set_emergency_stop(session, current_user, reason=reason)
 
 
 @router.post("/{app_id}/verify-email", status_code=status.HTTP_200_OK)
 async def verify_application_email_endpoint(
     app_id: str,
+    current_user: User = Depends(get_desktop_operator),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -386,12 +363,12 @@ async def verify_application_email_endpoint(
     node_id = f"application:{app_id}" if not app_id.startswith("application:") else app_id
     res = await session.execute(select(GraphNode).filter(GraphNode.id == node_id))
     node = res.scalar_one_or_none()
-    if not node:
+    if not node or str((node.properties or {}).get("user_id")) != str(current_user.id):
         raise HTTPException(status_code=404, detail="Application record not found")
         
     synced = await EmailSyncService.sync_confirmation_emails(
         session=session,
-        user_id="00000000-0000-0000-0000-000000000000"
+        user_id=str(current_user.id)
     )
     
     props = dict(node.properties) if node.properties else {}
@@ -411,8 +388,10 @@ async def get_application_detail_endpoint(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session)
 ) -> dict:
+    from app.models.graph import GraphNode
+    raw_id = app_id.removeprefix("application:")
     try:
-        a_uuid = uuid.UUID(app_id)
+        a_uuid = uuid.UUID(raw_id)
     except ValueError:
         raise HTTPException(status_code=422, detail="Invalid application ID format.")
 
@@ -421,7 +400,22 @@ async def get_application_detail_endpoint(
     )
     a = res.scalars().first()
     if not a:
-        raise HTTPException(status_code=404, detail="Application record not found or access denied.")
+        graph_res = await session.execute(select(GraphNode).filter(
+            GraphNode.id == f"application:{raw_id}",
+            GraphNode.entity_type == "APPLICATION",
+            GraphNode.properties["user_id"].astext == str(current_user.id),
+        ))
+        node = graph_res.scalars().first()
+        if not node or str((node.properties or {}).get("user_id")) != str(current_user.id):
+            raise HTTPException(status_code=404, detail="Application record not found or access denied.")
+        props = node.properties or {}
+        return {
+            "id": raw_id, "company": props.get("company"), "role": props.get("role"),
+            "status": props.get("status", "UNKNOWN"), "logs": props.get("logs", []),
+            "created_at": node.created_at.isoformat() if node.created_at else None,
+            "submitted_at": props.get("submitted_at"),
+            "email_confirmation_status": props.get("email_confirmation_status", "UNKNOWN"),
+        }
 
     return {
         "id": str(a.id),

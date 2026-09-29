@@ -1,5 +1,8 @@
 'use client';
 
+import { apiFetch } from '../lib/apiClient';
+import { ApplicationRecord, summarizeApplications, recentApplications, isVerifiedSubmission } from '../lib/dashboard';
+
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
@@ -17,52 +20,34 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    totalResumes: 2,
-    activeApplications: 20,
-    avgAtsMatch: 88,
-    appliesThisWeek: 20,
-  });
-
-  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [applications, setApplications] = useState<ApplicationRecord[] | null>(null);
+  const [resumeCount, setResumeCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [reload, setReload] = useState(0);
+  const stats = applications ? summarizeApplications(applications) : null;
+  const recentActivities = recentApplications(applications || []);
 
   useEffect(() => {
-    async function loadDashboardData() {
-      try {
-        const res = await fetch('http://localhost:8000/api/v1/applications');
-        if (res.ok) {
-          const apps = await res.json();
-          
-          // Calculate dynamic average ATS match score from apps
-          const totalAts = apps.reduce((acc: number, item: any) => acc + (item.ats_score || item.job_fit_score || 85), 0);
-          const computedAvgAts = apps.length > 0 ? Math.round(totalAts / apps.length) : 85;
-
-          setStats(prev => ({
-            ...prev,
-            activeApplications: apps.length,
-            appliesThisWeek: apps.length,
-            avgAtsMatch: computedAvgAts
-          }));
-
-          const activities = apps.slice(0, 10).map((app: any) => ({
-            id: app.id,
-            company: app.company || 'Target Employer',
-            role: app.role || 'Software Engineer',
-            status: app.status || 'SUBMITTED',
-            timestamp: app.applied_at || app.created_at || new Date().toISOString(),
-            isVerified: app.status === 'SUBMITTED_VERIFIED' || app.status === 'SUBMITTED',
-          }));
-          setRecentActivities(activities);
-        }
-      } catch (err) {
-        console.error('Failed to fetch dashboard activities:', err);
-      } finally {
-        setLoading(false);
+    let active = true;
+    setLoading(true);
+    setError('');
+    setApplications(null);
+    setResumeCount(null);
+    Promise.allSettled([
+      apiFetch<ApplicationRecord[]>('/api/v1/applications'),
+      apiFetch<unknown[]>('/api/v1/resumes'),
+    ]).then(([apps, resumes]) => {
+      if (!active) return;
+      if (apps.status === 'fulfilled' && Array.isArray(apps.value)) setApplications(apps.value);
+      if (resumes.status === 'fulfilled' && Array.isArray(resumes.value)) setResumeCount(resumes.value.length);
+      if (apps.status === 'rejected' || resumes.status === 'rejected') {
+        setError('Some dashboard data could not be loaded. Check your connection and try again.');
       }
-    }
-    loadDashboardData();
-  }, []);
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [reload]);
 
   return (
     <div className="space-y-8">
@@ -101,12 +86,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 4 Stat Overview Cards */}
+      {error && <div role="alert" className="flex items-center justify-between gap-4 rounded-lg border border-red-900 bg-red-950/30 p-4 text-sm text-red-200">
+        <span>{error}</span><button onClick={() => setReload(value => value + 1)} className="rounded border border-red-800 px-3 py-2">Retry</button>
+      </div>}
+      {/* These metrics describe the loaded feed, which the API currently limits. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-neutral-900/80 p-5 rounded-xl border border-neutral-800 flex items-center justify-between">
           <div>
-            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Total Resumes</span>
-            <div className="text-2xl font-bold text-white mt-1">{stats.totalResumes}</div>
+            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Resumes in view</span>
+            <div className="text-2xl font-bold text-white mt-1">{loading ? '…' : resumeCount ?? '—'}</div>
             <span className="text-[10px] text-emerald-400 mt-1 inline-block">Master & Tailored versions</span>
           </div>
           <div className="p-3 bg-neutral-800/80 rounded-lg text-emerald-400">
@@ -116,9 +104,9 @@ export default function DashboardPage() {
 
         <div className="bg-neutral-900/80 p-5 rounded-xl border border-neutral-800 flex items-center justify-between">
           <div>
-            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Active Applications</span>
-            <div className="text-2xl font-bold text-white mt-1">{stats.activeApplications}</div>
-            <span className="text-[10px] text-emerald-400 mt-1 inline-block">Tracked in database</span>
+            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Active in feed</span>
+            <div className="text-2xl font-bold text-white mt-1">{loading ? '…' : stats?.activeApplications ?? '—'}</div>
+            <span className="text-[10px] text-emerald-400 mt-1 inline-block">Within loaded application feed</span>
           </div>
           <div className="p-3 bg-neutral-800/80 rounded-lg text-blue-400">
             <Send size={22} />
@@ -127,9 +115,9 @@ export default function DashboardPage() {
 
         <div className="bg-neutral-900/80 p-5 rounded-xl border border-neutral-800 flex items-center justify-between">
           <div>
-            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Avg ATS Match</span>
-            <div className="text-2xl font-bold text-white mt-1">{stats.avgAtsMatch}%</div>
-            <span className="text-[10px] text-emerald-400 mt-1 inline-block">TruthGuard verified</span>
+            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Avg recorded ATS</span>
+            <div className="text-2xl font-bold text-white mt-1">{loading ? '…' : stats?.avgAtsMatch == null ? '—' : `${stats.avgAtsMatch}%`}</div>
+            <span className="text-[10px] text-emerald-400 mt-1 inline-block">Recorded ATS scores only</span>
           </div>
           <div className="p-3 bg-neutral-800/80 rounded-lg text-purple-400">
             <Target size={22} />
@@ -138,9 +126,9 @@ export default function DashboardPage() {
 
         <div className="bg-neutral-900/80 p-5 rounded-xl border border-neutral-800 flex items-center justify-between">
           <div>
-            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Applies This Week</span>
-            <div className="text-2xl font-bold text-white mt-1">{stats.appliesThisWeek}</div>
-            <span className="text-[10px] text-emerald-400 mt-1 inline-block">Verified evidence log</span>
+            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Submitted · 7 days</span>
+            <div className="text-2xl font-bold text-white mt-1">{loading ? '…' : stats?.appliesThisWeek ?? '—'}</div>
+            <span className="text-[10px] text-emerald-400 mt-1 inline-block">Within loaded application feed</span>
           </div>
           <div className="p-3 bg-neutral-800/80 rounded-lg text-amber-400">
             <TrendingUp size={22} />
@@ -152,7 +140,7 @@ export default function DashboardPage() {
       <div className="bg-neutral-900/60 rounded-xl border border-neutral-800 p-6 space-y-4">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
           <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <Clock size={16} className="text-emerald-400" /> Recent Activity Feed (Last 10 Events)
+            <Clock size={16} className="text-emerald-400" /> Recent Applications (Latest 10)
           </h2>
           <Link href="/applications" className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-medium">
             View All Applications <ArrowRight size={12} />
@@ -160,30 +148,30 @@ export default function DashboardPage() {
         </div>
 
         {loading ? (
-          <div className="py-8 text-center text-xs text-neutral-500">Loading verified activities...</div>
+          <div className="py-8 text-center text-xs text-neutral-500">Loading applications...</div>
         ) : recentActivities.length === 0 ? (
-          <div className="py-8 text-center text-xs text-neutral-500">No recent application events recorded.</div>
+          <div className="py-8 text-center text-xs text-neutral-500">{applications === null ? 'Application data is unavailable.' : 'No applications yet. Search jobs to get started.'}</div>
         ) : (
           <div className="divide-y divide-neutral-800/50">
             {recentActivities.map((act) => (
               <div key={act.id} className="py-3 flex justify-between items-center">
                 <div className="space-y-0.5">
                   <div className="text-sm font-semibold text-white flex items-center gap-2">
-                    {act.role} <span className="text-neutral-400 font-normal">at</span> {act.company}
+                    {act.role || 'Role unavailable'} <span className="text-neutral-400 font-normal">at</span> {act.company || 'Company unavailable'}
                   </div>
                   <div className="text-[11px] text-neutral-500 flex items-center gap-2">
-                    <span>Timestamp: {new Date(act.timestamp).toLocaleString()}</span>
+                    <span>Timestamp: {(act.submitted_at || act.applied_at || act.created_at) ? new Date(act.submitted_at || act.applied_at || act.created_at!).toLocaleString() : 'Unavailable'}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {act.isVerified ? (
+                  {isVerifiedSubmission(act.status) ? (
                     <span className="px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-semibold flex items-center gap-1">
-                      <CheckCircle2 size={10} /> Verified Log
+                      <CheckCircle2 size={10} /> Verified submission
                     </span>
                   ) : (
                     <span className="px-2.5 py-1 rounded-full bg-neutral-800 text-neutral-400 border border-neutral-700 text-[10px] font-semibold">
-                      Unverified
+                      {act.status || 'Unknown status'}
                     </span>
                   )}
                   <Link

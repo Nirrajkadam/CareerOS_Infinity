@@ -1,44 +1,69 @@
-name: Verify Build & Compile Check
+name: Verify database, API and frontend
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
+
+permissions:
+  contents: read
 
 jobs:
-  verify:
+  backend:
     runs-on: ubuntu-latest
-
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg16
         env:
-          POSTGRES_DB: careeros
-          POSTGRES_USER: admin
-          POSTGRES_PASSWORD: password
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: careeros_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres -d careeros_test"
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
-
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/careeros_test
+      SECRET_KEY: test-only-key-not-for-deployment-0123456789
+      COOKIE_SECURE: 'false'
+      CAREEROS_DATABASE_TESTS: '1'
+      LITELLM_LOCAL_MODEL_COST_MAP: 'true'
+      PYTHONPATH: .
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: python -m pip install -r backend/requirements-dev.txt
+      - name: Migrate a fresh database and verify a second upgrade is a no-op
+        working-directory: backend
+        run: |
+          python -m alembic upgrade head
+          python -m alembic upgrade head
+      - name: Run request, service and database regressions
+        working-directory: backend
+        run: python -m pytest app/tests -q
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-name: '3.11'
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r backend/requirements.txt
-
-    - name: Verify compilation and run test sweeps
-      run: |
-        python -m py_compile backend/app/main.py
-        python verify_e2e_pipeline.py
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'

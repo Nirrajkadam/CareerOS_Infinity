@@ -1,6 +1,8 @@
 import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import Field, field_validator
+from typing import Optional
+from uuid import UUID
 
 # Configure basic application logger
 logging.basicConfig(
@@ -36,17 +38,46 @@ class Settings(BaseSettings):
 
     # AI Configurations
     GEMINI_API_KEY: str = Field(default="")
+    ASSISTANT_MODEL: str = "gemini/gemini-3.5-flash"
+    AZURE_SPEECH_KEY: str = ""
+    AZURE_SPEECH_REGION: str = Field(default="", pattern=r"^[a-z0-9]*$")
 
     # Email Sync Configurations (Optional Real Inbox Connection)
     IMAP_USER_EMAIL: str = Field(default="")
     GMAIL_APP_PASSWORD: str = Field(default="")
 
     # Security Keys
-    SECRET_KEY: str = Field(
-        default="super_secret_jwt_sign_key_rotating_32_bytes_len"
-    )
+    SECRET_KEY: str = Field(min_length=32)
     ALGORITHM: str = Field(default="HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60)
+    CORS_ORIGINS: list[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000"])
+    COOKIE_SECURE: bool = True
+    ENABLE_SANDBOX_ATS: bool = False
+    # Existing portal profiles and the credential vault are single-operator resources.
+    DESKTOP_OPERATOR_USER_ID: Optional[UUID] = None
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def use_async_postgres_driver(cls, value: str) -> str:
+        # Hosting providers commonly return a PostgreSQL URL without a driver.
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+asyncpg://" + value[len(prefix):]
+        return value
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def reject_published_secret(cls, value: str) -> str:
+        if value == "super_secret_jwt_sign_key_rotating_32_bytes_len":
+            raise ValueError("Generate a private SECRET_KEY; the published development key is unsafe")
+        return value
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def require_explicit_origins(cls, value: list[str]) -> list[str]:
+        if "*" in value:
+            raise ValueError("CORS_ORIGINS must contain explicit frontend origins")
+        return value
 
 # Instantiate single settings instance
 settings = Settings()
@@ -54,7 +85,5 @@ settings = Settings()
 import os
 if settings.GEMINI_API_KEY:
     os.environ["GEMINI_API_KEY"] = settings.GEMINI_API_KEY
-    os.environ["GEMINI_API_KEY"] = settings.GEMINI_API_KEY
 
 logger.info("Application settings loaded successfully.")
-

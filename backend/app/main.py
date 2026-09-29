@@ -14,6 +14,7 @@ from app.core.exceptions import register_custom_exception_handlers
 from app.core.middleware import CorrelationIdMiddleware
 from app.core.metrics import router as metrics_router
 from app.api.auth import router as auth_router
+from app.api.assistant import router as assistant_router
 from app.api.resumes import router as resumes_router
 from app.api.jobs import router as jobs_router
 from app.api.applications import router as applications_router
@@ -52,7 +53,7 @@ logger = logging.getLogger("app.main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # DDL schema initialization bypassed locally; schemas created via SQL Editor
+    # Schema changes are applied explicitly with `alembic upgrade head` before startup.
     yield
 
 app = FastAPI(
@@ -66,7 +67,7 @@ app = FastAPI(
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict in production environments
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -102,6 +103,7 @@ from app.api.test_ats import router as test_ats_router
 
 # Register platform api routers
 app.include_router(auth_router, prefix=settings.API_V1_STR)
+app.include_router(assistant_router, prefix=settings.API_V1_STR)
 app.include_router(metrics_router, prefix=settings.API_V1_STR)
 app.include_router(resumes_router, prefix=settings.API_V1_STR)
 app.include_router(jobs_router, prefix=settings.API_V1_STR)
@@ -112,7 +114,8 @@ app.include_router(jobpilot_router, prefix=settings.API_V1_STR)
 app.include_router(tracking_router, prefix=settings.API_V1_STR)
 app.include_router(interviews_router, prefix=settings.API_V1_STR)
 app.include_router(career_analytics_router, prefix=settings.API_V1_STR)
-app.include_router(test_ats_router, prefix=settings.API_V1_STR)
+if settings.ENABLE_SANDBOX_ATS:
+    app.include_router(test_ats_router, prefix=settings.API_V1_STR)
 
 @app.websocket("/ws/interviews/{session_id}")
 async def mock_interview_websocket(websocket: WebSocket, session_id: str):

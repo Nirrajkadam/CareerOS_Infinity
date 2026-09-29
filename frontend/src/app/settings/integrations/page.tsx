@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest } from '../../../lib/apiClient';
+
 import React, { useState, useEffect } from 'react';
 import { 
   Sliders, 
@@ -19,7 +21,7 @@ export default function SourceIntegrationsPage() {
 
   async function fetchSourceHealth() {
     try {
-      const res = await fetch('http://localhost:8000/api/v1/jobs/source-health');
+      const res = await apiRequest('/api/v1/jobs/source-health');
       if (res.ok) {
         const data = await res.json();
         setSources(data.map((s: any) => ({ ...s, enabled: true })));
