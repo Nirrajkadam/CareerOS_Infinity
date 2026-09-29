@@ -4,6 +4,7 @@ Run with CAREEROS_DATABASE_TESTS=1 and DATABASE_URL pointing at a test database.
 Only external AI calls are replaced; authentication and persistence are real.
 """
 import os
+import json
 import uuid
 from unittest.mock import AsyncMock
 
@@ -134,4 +135,55 @@ async def test_application_creation_preserves_computed_scores_and_deduplicates(c
     finally:
         async with AsyncSessionLocal() as session:
             await session.execute(delete(JobPosting).where(JobPosting.id == job_id))
+            await session.commit()
+
+
+async def test_assistant_search_compare_prepare_and_owner_scoping(client, account, monkeypatch):
+    from app.core.config import settings
+    from app.models.application import Application
+    from app.services.career_assistant import CareerAssistant
+    from app.tests.test_assistant import answer
+
+    _, user_id, headers = account
+    other_id = uuid.uuid4()
+    async with AsyncSessionLocal() as session:
+        job = JobPosting(title='DevOps Verification Engineer', company='Assistant Test',
+                         description='Build reliable deployment pipelines with Python and Docker alongside our engineering team.',
+                         jd_intelligence={'required_skills': ['Python', 'Docker']})
+        session.add(job)
+        session.add(User(id=other_id, email=f'assistant-other-{other_id}@example.com', hashed_password='unused'))
+        await session.flush()
+        job_id = job.id
+        session.add(Application(user_id=other_id, job_posting_id=job.id, company='Other user private company', role='Private role'))
+        await session.commit()
+    monkeypatch.setattr(settings, 'GEMINI_API_KEY', 'test-only-model-mocked')
+    monkeypatch.setattr(CareerAssistant, 'complete', AsyncMock(side_effect=[
+        answer(calls=[('get_profile', {}), ('search_jobs', {'query': 'DevOps Verification', 'limit': 1})]),
+        answer(calls=[('match_job', {'job_id': str(job_id)})]),
+        answer(calls=[('prepare_application', {'job_id': str(job_id)}), ('list_applications', {})]),
+        answer('Prepared your local application record. Nothing was submitted to the employer.'),
+    ]))
+    try:
+        response = await client.post('/api/v1/assistant/chat', headers=headers,
+                                     json={'message': 'Find DevOps Verification jobs, compare my fit and prepare the best one.'})
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result['mode'] == 'ai'
+        assert len(result['steps']) == 5
+        assert all(step['status'] == 'completed' for step in result['steps'])
+        transcript = CareerAssistant.complete.call_args.args[0]
+        tool_data = [json.loads(item['content']) for item in transcript if item['role'] == 'tool']
+        listed = next(item for item in tool_data if 'applications' in item)
+        assert len(listed['applications']) == 1
+        assert listed['applications'][0]['company'] == 'Assistant Test'
+        async with AsyncSessionLocal() as session:
+            saved = (await session.execute(select(Application).where(Application.user_id == uuid.UUID(user_id)))).scalar_one()
+            assert saved.source == 'ASSISTANT'
+            assert saved.application_stage == 'UNSUBMITTED'
+            assert saved.submitted_at is None
+            assert any(link['url'] == f'/applications/{saved.id}' for link in result['links'])
+    finally:
+        async with AsyncSessionLocal() as session:
+            await session.execute(delete(JobPosting).where(JobPosting.id == job_id))
+            await session.execute(delete(User).where(User.id == other_id))
             await session.commit()

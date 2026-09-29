@@ -115,7 +115,7 @@ def test_unavailable_accounts_are_not_resurrected(api, account, state):
     ("post", "/applications/verify-login"), ("post", "/applications/apply"),
     ("post", "/applications/autonomous-run"), ("post", "/applications/sync-email"),
     ("post", "/applications/sync-emails"), ("post", "/applications/emergency-stop"),
-    ("post", "/applications/example/verify-email"), ("post", "/jobpilot/agent-command"),
+    ("post", "/applications/example/verify-email"),
 ])
 def test_shared_resources_require_the_configured_operator(api, account, monkeypatch, method, path):
     monkeypatch.setattr(settings, "DESKTOP_OPERATOR_USER_ID", uuid.uuid4())

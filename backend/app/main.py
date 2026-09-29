@@ -14,6 +14,7 @@ from app.core.exceptions import register_custom_exception_handlers
 from app.core.middleware import CorrelationIdMiddleware
 from app.core.metrics import router as metrics_router
 from app.api.auth import router as auth_router
+from app.api.assistant import router as assistant_router
 from app.api.resumes import router as resumes_router
 from app.api.jobs import router as jobs_router
 from app.api.applications import router as applications_router
@@ -102,6 +103,7 @@ from app.api.test_ats import router as test_ats_router
 
 # Register platform api routers
 app.include_router(auth_router, prefix=settings.API_V1_STR)
+app.include_router(assistant_router, prefix=settings.API_V1_STR)
 app.include_router(metrics_router, prefix=settings.API_V1_STR)
 app.include_router(resumes_router, prefix=settings.API_V1_STR)
 app.include_router(jobs_router, prefix=settings.API_V1_STR)

@@ -38,6 +38,9 @@ class Settings(BaseSettings):
 
     # AI Configurations
     GEMINI_API_KEY: str = Field(default="")
+    ASSISTANT_MODEL: str = "gemini/gemini-3.5-flash"
+    AZURE_SPEECH_KEY: str = ""
+    AZURE_SPEECH_REGION: str = Field(default="", pattern=r"^[a-z0-9]*$")
 
     # Email Sync Configurations (Optional Real Inbox Connection)
     IMAP_USER_EMAIL: str = Field(default="")

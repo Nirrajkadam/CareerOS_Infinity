@@ -58,6 +58,10 @@ python -m playwright install chromium
 
 Do not run `autonomous_job_hunter.py` against real portals: its legacy feed includes invented listings. Preparing an application record does not send an application.
 
+## Voice assistant
+
+Use **Ask KAI** for typed or spoken instructions in Indian English or Hindi. With Gemini configured, it can search stored jobs, compare your profile and prepare application records automatically. Optional Azure Speech provides an Indian female neural voice; device speech is the fallback. See [setup, examples and supported actions](docs/VOICE_ASSISTANT.md).
+
 ## Configuration
 
 | Setting | Purpose |

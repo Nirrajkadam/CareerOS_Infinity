@@ -1,332 +1,221 @@
 'use client';
-
-import { apiRequest } from '../lib/apiClient';
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, MicOff, Volume2, Sparkles, X, Bot, Terminal, Send, RefreshCw, ShieldCheck, UserCheck, Compass } from 'lucide-react';
+import { Bot, Mic, MicOff, Send, Square, Volume2, X } from 'lucide-react';
+import { apiFetch, apiRequest } from '../lib/apiClient';
+import { AssistantLanguage, chooseIndianVoice, recognitionText, safeAssistantPath } from '../lib/assistant';
+
+type Step = { action: string; status: 'completed' | 'failed'; summary: string };
+type Reply = { reply: string; mode: string; steps: Step[]; links: { label: string; url: string }[]; navigate_url?: string };
+type Message = { role: 'user' | 'assistant'; content: string; result?: Reply };
+type Config = { ai_configured: boolean; neural_voice_configured: boolean };
+type RecognitionResult = { isFinal: boolean; 0: { transcript: string } };
+type Recognition = {
+  lang: string; continuous: boolean; interimResults: boolean;
+  onstart: (() => void) | null; onend: (() => void) | null;
+  onresult: ((event: { results: ArrayLike<RecognitionResult> }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  start(): void; abort(): void;
+};
+type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
+const welcome: Message = { role: 'assistant', content: 'Namaste! I’m KAI, your AI career assistant. Tell me your goal. I can search stored jobs, compare your profile and prepare application records for you.' };
 
 export default function VoiceAssistant() {
   const router = useRouter();
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([welcome]);
+  const [input, setInput] = useState('');
+  const [language, setLanguage] = useState<AssistantLanguage>('en-IN');
+  const [config, setConfig] = useState<Config | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [readAloud, setReadAloud] = useState(true);
   const [transcript, setTranscript] = useState('');
-  const [typedCommand, setTypedCommand] = useState('');
-  const [responseMessage, setResponseMessage] = useState(
-    'Namaste Niraj! I am KAI, your official CareerOS Project Representative. I manage your live job discovery, resume tailoring, application submissions, and IMAP receipt verifications with TruthGuard safety. Speak or type any instruction!'
-  );
-  const [executionLogs, setExecutionLogs] = useState<string[]>([
-    "KAI_INITIALIZED: Project Representative ready for career operations."
-  ]);
-  const [healingStatus, setHealingStatus] = useState<string>('HEALTHY');
-  const [isOpen, setIsOpen] = useState(false);
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [notice, setNotice] = useState('');
+  const [voiceLabel, setVoiceLabel] = useState('Device voice');
+  const recognition = useRef<Recognition | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const audioUrl = useRef<string | null>(null);
+  const speechAbort = useRef<AbortController | null>(null);
+  const chatAbort = useRef<AbortController | null>(null);
+  const speechVersion = useRef(0);
+  const busyRef = useRef(false);
+  const alive = useRef(true);
+  const openRef = useRef(false);
+  const aloudRef = useRef(true);
+  const conversation = useRef<HTMLDivElement>(null);
+  const sendRef = useRef<(text: string) => void>(() => undefined);
+  const panel = useRef<HTMLElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
 
-  // Pre-load female natural voices asynchronously
+  function stopSpeech() {
+    speechVersion.current += 1;
+    speechAbort.current?.abort(); speechAbort.current = null;
+    if (audio.current) { audio.current.pause(); audio.current.src = ''; audio.current = null; }
+    if (audioUrl.current) { URL.revokeObjectURL(audioUrl.current); audioUrl.current = null; }
+    window.speechSynthesis?.cancel();
+    if (alive.current) setSpeaking(false);
+  }
+  function stopListening() {
+    const current = recognition.current; recognition.current = null;
+    if (current) { current.onend = null; current.onresult = null; current.onerror = null; current.onstart = null; current.abort(); }
+    if (alive.current) { setListening(false); setTranscript(''); }
+  }
+  function closePanel() { openRef.current = false; stopListening(); stopSpeech(); setOpen(false); trigger.current?.focus(); }
   useEffect(() => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
-    function updateVoices() {
-      const vList = window.speechSynthesis.getVoices();
-      setAvailableVoices(vList);
-    }
-
-    updateVoices();
-    window.speechSynthesis.onvoiceschanged = updateVoices;
+    alive.current = true;
+    return () => { alive.current = false; stopListening(); stopSpeech(); chatAbort.current?.abort(); };
   }, []);
-
-  function speakText(text: string) {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    
-    // Ensure Chrome audio context is unpaused
-    window.speechSynthesis.resume();
-    window.speechSynthesis.cancel(); // stop previous speech
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.92; // Natural, clear female speech cadence
-    utterance.pitch = 1.05; // Pleasant natural female pitch
-
-    const vList = availableVoices.length > 0 ? availableVoices : window.speechSynthesis.getVoices();
-    
-    // Select natural female voice
-    const femaleVoice = vList.find(v => 
-      v.name.includes("Zira") || 
-      v.name.includes("Google US English") || 
-      v.name.includes("Google UK English Female") || 
-      v.name.includes("Jenny") || 
-      v.name.includes("Aria") || 
-      v.name.includes("Samantha") ||
-      v.name.includes("Victoria") ||
-      (v.name.toLowerCase().includes("female") && v.lang.startsWith("en")) ||
-      (v.lang.startsWith("en") && !v.name.includes("David") && !v.name.includes("Mark"))
-    );
-
-    if (femaleVoice) {
-      utterance.voice = femaleVoice;
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    apiFetch<Config>('/api/v1/assistant/config').then(value => { if (active) setConfig(value); })
+      .catch(() => { if (active) setNotice('Unable to check assistant availability. You can still try a message.'); });
+    panel.current?.focus();
+    return () => { active = false; };
+  }, [open]);
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    function update() {
+      const voice = synth && chooseIndianVoice(synth.getVoices(), language);
+      setVoiceLabel(config?.neural_voice_configured ? (language === 'hi-IN' ? 'Swara · Indian female' : 'Neerja · Indian female')
+        : voice ? `${voice.name} · device voice` : 'Device voice · availability varies');
     }
+    update(); synth?.addEventListener('voiceschanged', update);
+    return () => synth?.removeEventListener('voiceschanged', update);
+  }, [config, language]);
+  useEffect(() => { conversation.current?.scrollTo({ top: conversation.current.scrollHeight, behavior: 'smooth' }); }, [messages, busy, transcript]);
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = (e) => {
-      console.error("Speech synthesis error:", e);
-      setIsSpeaking(false);
+  async function speak(text: string) {
+    stopListening(); stopSpeech();
+    const version = speechVersion.current;
+    const plain = text.replace(/[*#`]/g, '').slice(0, 1800);
+    if (config?.neural_voice_configured) {
+      const controller = new AbortController(); speechAbort.current = controller;
+      try {
+        const response = await apiRequest('/api/v1/assistant/speech', { method: 'POST', body: JSON.stringify({ text: plain, language }), signal: controller.signal });
+        if (!response.ok) throw new Error('Neural speech unavailable');
+        const blob = await response.blob();
+        if (!alive.current || version !== speechVersion.current) return;
+        const url = URL.createObjectURL(blob); audioUrl.current = url;
+        const player = new Audio(url); audio.current = player;
+        const finish = () => { if (version === speechVersion.current) stopSpeech(); };
+        player.onended = finish;
+        player.onerror = () => { if (version === speechVersion.current) { finish(); setNotice('Audio could not play. Your reply is available in the chat.'); } };
+        await player.play();
+        if (version === speechVersion.current) setSpeaking(true);
+        return;
+      } catch {
+        if (!alive.current || version !== speechVersion.current) return;
+        if (audioUrl.current) { URL.revokeObjectURL(audioUrl.current); audioUrl.current = null; }
+        audio.current = null;
+        setNotice('Neural voice unavailable. Using a device voice; tap Read reply if playback is blocked.');
+      }
+    }
+    if (!('speechSynthesis' in window)) { setNotice('Speech playback is unavailable in this browser. You can read every reply here.'); return; }
+    const utterance = new SpeechSynthesisUtterance(plain);
+    const voice = chooseIndianVoice(window.speechSynthesis.getVoices(), language);
+    if (voice) utterance.voice = voice;
+    utterance.lang = language; utterance.rate = 0.96; utterance.pitch = 1;
+    utterance.onstart = () => { if (version === speechVersion.current) setSpeaking(true); };
+    utterance.onend = () => { if (version === speechVersion.current) setSpeaking(false); };
+    utterance.onerror = event => {
+      if (version !== speechVersion.current) return;
+      setSpeaking(false);
+      if (event.error !== 'canceled' && event.error !== 'interrupted') setNotice('Voice playback is unavailable. Your reply is available in the chat.');
     };
-
     window.speechSynthesis.speak(utterance);
   }
-
-  function handleListenToggle() {
-    if (isListening) {
-      setIsListening(false);
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in your browser. Please use Chrome/Edge.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      setTranscript('Listening to your instruction...');
-    };
-
-    recognition.onresult = (event: any) => {
-      const current = event.resultIndex;
-      const text = event.results[current][0].transcript;
-      setTranscript(text);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      if (transcript && transcript !== 'Listening to your instruction...') {
-        sendBackendAgentCommand(transcript);
-      }
-    };
-
-    recognition.start();
-  }
-
-  async function sendBackendAgentCommand(cmdText: string) {
-    if (!cmdText.trim()) return;
-
-    setIsProcessing(true);
-    setTranscript(cmdText);
-
+  async function send(text: string) {
+    const message = text.trim();
+    if (!message || busyRef.current) return;
+    busyRef.current = true; stopListening(); stopSpeech(); setBusy(true); setNotice(''); setInput('');
+    const history = messages.slice(1).slice(-12).map(({ role, content }) => ({ role, content: content.slice(0, 4000) }));
+    setMessages(previous => [...previous, { role: 'user', content: message }]);
+    const controller = new AbortController(); chatAbort.current = controller;
     try {
-      const res = await apiRequest('/api/v1/jobpilot/agent-command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: cmdText })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const formattedReply = `KAI: ${data.agent_reply || "Task executed successfully."}`;
-        setResponseMessage(formattedReply);
-        setExecutionLogs(data.logs || ["EXECUTED: Representative task finished."]);
-        setHealingStatus(data.self_healing_status || "EXECUTED_CLEANLY");
-
-        // Speak reply via Text-to-Speech
-        speakText(data.agent_reply || formattedReply);
-
-        // Perform client-side route navigation if requested by backend agent
-        if (data.navigate_url) {
-          router.push(data.navigate_url);
-        }
-      } else {
-        // Handle Error & Self-Heal Trigger
-        setHealingStatus("ERROR_DETECTED");
-        const errReply = "KAI: Server response notice detected. Initiating autonomous self-healing sequence.";
-        setResponseMessage(errReply);
-        setExecutionLogs([
-          "ERROR_DETECTED: Backend endpoint returned non-200 code.",
-          "AUTO_HEALING: Retrying via safe fallback route...",
-          "STATUS: HEALED_SAFE_FALLBACK"
-        ]);
-        speakText(errReply);
-      }
-    } catch (err) {
-      console.error("KAI Representative communication error:", err);
-      setHealingStatus("AUTO_HEALED");
-      const errReply = "KAI: Network latency detected. Applying zero-crash self-healing guarantee.";
-      setResponseMessage(errReply);
-      setExecutionLogs([
-        `EXCEPTION_CAPTURED: ${err}`,
-        "SELF_HEALING_AGENT: Applying zero-crash guarantee state.",
-        "STATUS: AUTO_HEALED"
-      ]);
-      speakText(errReply);
-    } finally {
-      setIsProcessing(false);
-      setTypedCommand('');
-    }
+      const result = await apiFetch<Reply>('/api/v1/assistant/chat', { method: 'POST', body: JSON.stringify({ message, history, language }), signal: controller.signal });
+      if (!alive.current) return;
+      setMessages(previous => [...previous, { role: 'assistant', content: result.reply, result }]);
+      if (result.navigate_url && safeAssistantPath(result.navigate_url)) router.push(result.navigate_url);
+      if (aloudRef.current && openRef.current) void speak(result.reply);
+    } catch (error) {
+      if (!alive.current) return;
+      setMessages(previous => [...previous, { role: 'assistant', content: 'I couldn’t receive the task result. Check your connection and application records before retrying.' }]);
+      setNotice(error instanceof Error ? error.message : 'Unable to reach the assistant.'); setInput(message);
+    } finally { busyRef.current = false; if (alive.current) setBusy(false); }
   }
-
-  function handleTypedSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (typedCommand.trim()) {
-      sendBackendAgentCommand(typedCommand.trim());
-    }
+  sendRef.current = text => { void send(text); };
+  function listen() {
+    if (recognition.current) { stopListening(); return; }
+    if (busyRef.current) return;
+    const speechWindow = window as SpeechWindow;
+    const RecognitionAPI = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!RecognitionAPI) { setNotice('Voice input is unavailable here. Try Chrome or Edge, or type your instruction.'); return; }
+    if (!window.isSecureContext) { setNotice('Microphone input needs HTTPS or localhost. You can type instead.'); return; }
+    stopSpeech(); setNotice(''); setTranscript('');
+    const current = new RecognitionAPI(); recognition.current = current; setListening(true);
+    current.lang = language; current.continuous = false; current.interimResults = true;
+    let finalText = ''; let failed = false;
+    current.onstart = () => setListening(true);
+    current.onresult = event => { finalText = recognitionText(event.results, true); setTranscript(recognitionText(event.results)); };
+    current.onerror = event => {
+      failed = true; setListening(false);
+      const reasons: Record<string, string> = {
+        'not-allowed': 'Allow microphone access in your browser, or type your instruction.',
+        'audio-capture': 'No microphone was found. Connect one or type your instruction.',
+        'no-speech': 'I didn’t hear an instruction. Tap the microphone and try again.',
+        network: 'Speech recognition could not connect. Please type your instruction.',
+      };
+      setNotice(reasons[event.error] || 'Voice input stopped. Please try again or type.');
+    };
+    current.onend = () => {
+      recognition.current = null; setListening(false);
+      if (!failed && finalText) sendRef.current(finalText);
+      else if (!failed) setNotice('No complete instruction was heard. Please try again.');
+    };
+    try { current.start(); } catch { recognition.current = null; setListening(false); setNotice('Microphone could not start. Please try again.'); }
   }
-
-  return (
-    <>
-      {/* Floating Action Trigger Button */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-4 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xl shadow-emerald-900/60 border border-emerald-400/40 transition-all transform hover:scale-105 flex items-center gap-2.5 font-bold text-xs"
-        >
-          <Bot size={20} className="animate-pulse text-emerald-200" />
-          <span>KAI — Project Representative</span>
-        </button>
+  return <>
+    <button ref={trigger} onClick={() => { if (open) closePanel(); else { openRef.current = true; setOpen(true); } }} aria-expanded={open} aria-controls="kai-assistant"
+      className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-xl hover:bg-emerald-500"><Bot size={20} />Ask KAI</button>
+    {open && <section ref={panel} id="kai-assistant" role="dialog" aria-label="KAI career assistant" tabIndex={-1}
+      onKeyDown={event => { if (event.key === 'Escape') closePanel(); }}
+      className="fixed bottom-20 right-3 z-50 flex max-h-[calc(100dvh-6rem)] w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl sm:right-5 sm:w-[430px]">
+      <header className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+        <div><h2 className="font-semibold">KAI · Your career assistant</h2><p className="text-xs text-neutral-400">AI assistant · {voiceLabel}</p></div>
+        <button onClick={closePanel} aria-label="Close assistant" className="rounded p-2 hover:bg-neutral-800"><X size={18} /></button>
+      </header>
+      <div className="flex flex-wrap items-center gap-3 border-b border-neutral-800 px-4 py-2 text-xs">
+        <label>Language <select aria-label="Assistant language" disabled={busy || listening} value={language} onChange={event => { stopSpeech(); setLanguage(event.target.value as AssistantLanguage); }} className="ml-1 rounded bg-neutral-800 p-1">
+          <option value="en-IN">English (India)</option><option value="hi-IN">हिन्दी</option></select></label>
+        <label className="flex items-center gap-1"><input type="checkbox" checked={readAloud} onChange={event => { aloudRef.current = event.target.checked; setReadAloud(event.target.checked); if (!event.target.checked) stopSpeech(); }} />Read replies aloud</label>
+        {speaking && <button onClick={stopSpeech} className="flex items-center gap-1 text-emerald-300"><Square size={12} />Stop voice</button>}
       </div>
-
-      {/* Representative Drawer Modal */}
-      {isOpen && (
-        <div className="fixed bottom-24 right-6 w-96 max-w-[90vw] bg-neutral-900/95 backdrop-blur-md p-6 rounded-2xl border border-neutral-800 shadow-2xl z-50 space-y-4 max-h-[80vh] overflow-y-auto">
-          
-          {/* Header */}
-          <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
-            <div className="flex items-center gap-2">
-              <Sparkles size={18} className="text-emerald-400" />
-              <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                  KAI <span className="text-[10px] font-medium text-emerald-400 px-1.5 py-0.2 bg-emerald-950 rounded border border-emerald-800">Project Representative</span>
-                </h3>
-                <span className="text-[9px] text-neutral-400 font-mono flex items-center gap-1">
-                  <ShieldCheck size={10} className="text-emerald-400" /> TruthGuard Safe ({healingStatus})
-                </span>
-              </div>
-            </div>
-            <button onClick={() => setIsOpen(false)} className="text-neutral-400 hover:text-white">
-              <X size={16} />
-            </button>
-          </div>
-
-          {/* Representative Spoken Response Display */}
-          <div className="p-4 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2">
-            <div className="flex justify-between items-center text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
-              <span className="flex items-center gap-1">
-                <Volume2 size={12} className={isSpeaking ? "animate-bounce" : ""} /> KAI Female Natural Voice Response
-              </span>
-              <button
-                onClick={() => speakText(responseMessage)}
-                className="px-2 py-0.5 rounded bg-neutral-900 hover:bg-neutral-800 text-emerald-400 border border-neutral-700 font-sans text-[9px] flex items-center gap-1"
-              >
-                <Volume2 size={10} /> Speak Voice
-              </button>
-            </div>
-            <p className="text-xs text-neutral-200 leading-relaxed font-medium">
-              {responseMessage}
-            </p>
-          </div>
-
-          {/* Real-time Backend Execution Log Console */}
-          <div className="space-y-1">
-            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1">
-              <Terminal size={12} className="text-emerald-400" /> KAI Representative Execution Logs
-            </div>
-            <div className="p-3 bg-neutral-950 rounded-xl border border-neutral-800 font-mono text-[10px] text-emerald-300 space-y-1 max-h-32 overflow-y-auto">
-              {executionLogs.map((log, idx) => (
-                <div key={idx} className="flex items-start gap-1.5">
-                  <span className="text-neutral-600">›</span>
-                  <span className="leading-tight">{log}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Transcript Display */}
-          {transcript && (
-            <div className="p-2.5 bg-neutral-950 rounded-lg border border-neutral-800 text-xs text-neutral-400 font-mono">
-              <span className="text-[9px] text-neutral-500 block">Candidate Instruction:</span>
-              "{transcript}"
-            </div>
-          )}
-
-          {/* Voice Mic Button */}
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              onClick={handleListenToggle}
-              disabled={isProcessing}
-              className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${
-                isListening
-                  ? 'bg-rose-600 text-white animate-pulse border border-rose-400'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/40'
-              }`}
-            >
-              {isListening ? (
-                <>
-                  <MicOff size={16} /> Listening... Click to Stop
-                </>
-              ) : isProcessing ? (
-                <>
-                  <RefreshCw size={16} className="animate-spin" /> KAI Executing Task...
-                </>
-              ) : (
-                <>
-                  <Mic size={16} /> Speak to KAI
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Text Command Input Form */}
-          <form onSubmit={handleTypedSubmit} className="flex gap-1.5 pt-1">
-            <input
-              type="text"
-              value={typedCommand}
-              onChange={(e) => setTypedCommand(e.target.value)}
-              placeholder="Or type instruction for KAI..."
-              className="flex-1 px-3 py-2 bg-neutral-950 border border-neutral-800 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500 font-sans"
-            />
-            <button
-              type="submit"
-              disabled={isProcessing || !typedCommand.trim()}
-              className="px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 rounded-lg transition border border-neutral-700 font-medium text-xs flex items-center justify-center"
-            >
-              <Send size={14} />
-            </button>
-          </form>
-
-          {/* Quick Command Pills */}
-          <div className="text-[10px] text-neutral-500 space-y-1 border-t border-neutral-800/60 pt-2">
-            <span className="font-semibold text-neutral-400">Ask KAI to execute:</span>
-            <div className="flex flex-wrap gap-1">
-              {[
-                'Manage my project',
-                'Search Data Engineer jobs', 
-                'Verify application emails', 
-                'Show master profile', 
-                'Launch Chrome browser'
-              ].map((hint, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => sendBackendAgentCommand(hint)}
-                  className="px-2 py-0.5 rounded bg-neutral-950 text-neutral-400 hover:text-emerald-400 border border-neutral-800 font-mono text-[9px]"
-                >
-                  {hint}
-                </button>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      )}
-    </>
-  );
+      {config && !config.ai_configured && <p className="px-4 pt-3 text-xs text-amber-200">Basic commands available. Add the server’s Gemini key to enable conversations and multi-step tasks.</p>}
+      <div ref={conversation} role="log" aria-live="polite" aria-label="Conversation" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" style={{ minHeight: '120px' }}>
+        {messages.map((message, index) => <article key={index} className={`rounded-xl p-3 text-sm ${message.role === 'user' ? 'ml-6 bg-emerald-950' : 'mr-2 bg-neutral-950'}`}>
+          <p className="mb-1 text-xs font-semibold text-neutral-400">{message.role === 'user' ? 'You' : 'KAI'}</p>
+          <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+          {message.result && message.result.steps.length > 0 && <ul className="mt-3 space-y-1 border-t border-neutral-800 pt-2 text-xs">
+            {message.result.steps.map((step, stepIndex) => <li key={stepIndex} className={step.status === 'completed' ? 'text-emerald-300' : 'text-amber-200'}>{step.status === 'completed' ? '✓' : '!'} {step.summary}</li>)}</ul>}
+          {message.result?.links.filter(link => safeAssistantPath(link.url)).map(link => <a key={link.url} href={link.url} className="mt-2 block text-xs text-emerald-300 underline">{link.label} Open →</a>)}
+          {message.role === 'assistant' && <button onClick={() => void speak(message.content)} aria-label="Read reply" className="mt-2 inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-white"><Volume2 size={13} />Read reply</button>}
+        </article>)}
+        {busy && <p role="status" className="text-sm text-emerald-300">Working on your instruction…</p>}
+        {listening && <p role="status" className="text-sm text-emerald-300">{transcript || 'Listening… speak your instruction.'}</p>}
+      </div>
+      <footer className="space-y-3 border-t border-neutral-800 p-4">
+        {notice && <p role="alert" className="text-xs text-amber-200">{notice}</p>}
+        <div className="flex flex-wrap gap-2">{['Show my profile', 'Search DevOps jobs', 'Show my applications'].map(hint => <button key={hint} disabled={busy || listening} onClick={() => void send(hint)} className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:border-emerald-500 disabled:opacity-50">{hint}</button>)}</div>
+        <form onSubmit={event => { event.preventDefault(); void send(input); }} className="flex items-center gap-2">
+          <input aria-label="Instruction for KAI" maxLength={2000} value={input} onChange={event => setInput(event.target.value)} disabled={busy || listening} placeholder={language === 'hi-IN' ? 'अपना निर्देश लिखें…' : 'Tell me what to do…'} className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm focus:border-emerald-500 focus:outline-none" />
+          <button type="button" onClick={listen} disabled={busy} aria-label={listening ? 'Cancel listening' : 'Speak to KAI'} aria-pressed={listening} className={`rounded-lg p-3 ${listening ? 'bg-rose-700' : 'bg-neutral-800'} disabled:opacity-50`}>{listening ? <MicOff size={18} /> : <Mic size={18} />}</button>
+          <button type="submit" aria-label="Send instruction" disabled={busy || listening || !input.trim()} className="rounded-lg bg-emerald-600 p-3 disabled:opacity-40"><Send size={18} /></button>
+        </form>
+        <p className="text-[11px] leading-relaxed text-neutral-500">Tasks run while you wait. Prepared records stay in CareerOS until you submit them. Voice input uses your browser’s speech service.</p>
+      </footer>
+    </section>}
+  </>;
 }
