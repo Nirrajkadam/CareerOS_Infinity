@@ -2,8 +2,9 @@
 
 import { apiFetch } from '../../../lib/apiClient';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { 
   ArrowLeft, 
   ShieldCheck, 
@@ -16,7 +17,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-export default function ApplicationDetailPage({ params }: { params: { id: string } }) {
+function ApplicationDetailContent() {
+  const id = useSearchParams().get('id') || '';
   const [app, setApp] = useState<any>(null);
   const [verifyingEmail, setVerifyingEmail] = useState(false);
   const [emailSyncResult, setEmailSyncResult] = useState<string | null>(null);
@@ -25,14 +27,15 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (!id) { setApp(null); setError('Select an application from the tracker.'); setLoading(false); return; }
     fetchAppDetails();
-  }, [params.id]);
+  }, [id]);
 
   async function fetchAppDetails() {
     setLoading(true);
     setError('');
     try {
-      const found = await apiFetch<any>(`/api/v1/applications/${encodeURIComponent(params.id)}`);
+      const found = await apiFetch<any>(`/api/v1/applications/${encodeURIComponent(id)}`);
       setApp(found);
       setLogs(Array.isArray(found.logs) ? found.logs : []);
     } catch (err) {
@@ -45,8 +48,8 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
     setVerifyingEmail(true);
     setEmailSyncResult(null);
     try {
-      await apiFetch(`/api/v1/applications/${encodeURIComponent(params.id)}/verify-email`, { method: 'POST' });
-      const record = await apiFetch<any>(`/api/v1/applications/${encodeURIComponent(params.id)}`);
+      await apiFetch(`/api/v1/applications/${encodeURIComponent(id)}/verify-email`, { method: 'POST' });
+      const record = await apiFetch<any>(`/api/v1/applications/${encodeURIComponent(id)}`);
       setApp(record);
       setLogs(Array.isArray(record.logs) ? record.logs : []);
       setEmailSyncResult(record.status === 'SUBMITTED_VERIFIED'
@@ -77,7 +80,7 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
           <h1 className="text-2xl font-bold text-white">{app?.role || 'Role unavailable'}</h1>
           <div className="flex items-center gap-4 text-xs text-neutral-400 mt-1">
             <span className="flex items-center gap-1"><Building2 size={14} className="text-emerald-400" /> {app?.company || 'Target Employer'}</span>
-            <span>ID: {params.id}</span>
+            <span>ID: {id}</span>
           </div>
         </div>
 
@@ -154,4 +157,8 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
 
     </div>
   );
+}
+
+export default function ApplicationsDetailPage() {
+  return <Suspense fallback={<p role="status">Loading details…</p>}><ApplicationDetailContent /></Suspense>;
 }

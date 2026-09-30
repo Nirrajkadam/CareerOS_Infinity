@@ -67,3 +67,15 @@ jobs:
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+      - name: Verify GitHub Pages export and project paths
+        run: |
+          npm run build
+          test -f out/index.html
+          test -f out/jobs/detail/index.html
+          test -f out/applications/detail/index.html
+          grep -q '/CareerOS_Infinity/_next/' out/index.html
+        env:
+          STATIC_EXPORT: 'true'
+          NEXT_PUBLIC_BASE_PATH: /CareerOS_Infinity
+          NEXT_PUBLIC_API_URL: https://api.example.com
+          NEXT_TELEMETRY_DISABLED: '1'

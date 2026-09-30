@@ -175,7 +175,7 @@ export default function DashboardPage() {
                     </span>
                   )}
                   <Link
-                    href={`/applications/${act.id}`}
+                    href={`/applications/detail/?id=${encodeURIComponent(act.id)}`}
                     className="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[11px] font-medium"
                   >
                     Details

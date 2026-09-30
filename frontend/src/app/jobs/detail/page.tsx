@@ -2,7 +2,7 @@
 
 import { apiFetch } from '../../../lib/apiClient';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -17,7 +17,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
-export default function JobDetailPage({ params }: { params: { id: string } }) {
+function JobDetailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -62,7 +62,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       const data = await apiFetch<{ application_id: string }>('/api/v1/applications/apply', {
         method: 'POST', body: JSON.stringify({ company, role: title, portal_url: portalUrl }),
       });
-      router.push(`/applications/${encodeURIComponent(data.application_id)}`);
+      router.push(`/applications/detail/?id=${encodeURIComponent(data.application_id)}`);
     } catch (err) {
       setPrepareError(err instanceof Error ? err.message : 'Unable to prepare application.');
     } finally { setPreparing(false); }
@@ -234,4 +234,8 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
 
     </div>
   );
+}
+
+export default function JobsDetailPage() {
+  return <Suspense fallback={<p role="status">Loading details…</p>}><JobDetailContent /></Suspense>;
 }

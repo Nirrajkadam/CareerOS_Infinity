@@ -399,7 +399,7 @@ export default function JobsFeedPage() {
 
                   {/* Honest UX Rule: No Quick Apply button! Only View & Prepare Application */}
                   <Link
-                    href={`/jobs/${job.id || idx}?title=${encodeURIComponent(job.title)}&company=${encodeURIComponent(job.company)}&url=${encodeURIComponent(job.source_url || '')}`}
+                    href={`/jobs/detail/?id=${encodeURIComponent(job.id || String(idx))}&title=${encodeURIComponent(job.title)}&company=${encodeURIComponent(job.company)}&url=${encodeURIComponent(job.source_url || '')}`}
                     className="px-3.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-medium text-xs border border-neutral-700 transition flex items-center gap-1"
                   >
                     View & Prepare <ArrowRight size={12} />

@@ -99,7 +99,7 @@ GitHub Actions migrates a fresh PostgreSQL/pgvector database, runs the full back
 
 ## Deployment notes
 
-Set the frontend API URL **before** its production build, allow that frontend origin on the backend, and use HTTPS. `render.yaml` contains service configuration; run migrations before starting the API. Existing databases created manually outside Alembic need their schema and revision history reconciled before upgrading; take a backup first. Actual deployment verification remains necessary. The existing GitHub Pages workflow expects a static export that the current dynamic Next.js app does not produce.
+Set the frontend API URL **before** its production build, allow that frontend origin on the backend, and use HTTPS. `render.yaml` contains service configuration; run migrations before starting the API. Existing databases created manually outside Alembic need their schema and revision history reconciled before upgrading; take a backup first. The GitHub Pages workflow builds a static export with project-relative navigation and requires the `NEXT_PUBLIC_API_URL` repository variable. Follow the [deployment and recovery guide](docs/DEPLOYMENT.md), including live acceptance checks.
 
 ## License
 

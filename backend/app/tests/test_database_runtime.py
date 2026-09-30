@@ -181,7 +181,7 @@ async def test_assistant_search_compare_prepare_and_owner_scoping(client, accoun
             assert saved.source == 'ASSISTANT'
             assert saved.application_stage == 'UNSUBMITTED'
             assert saved.submitted_at is None
-            assert any(link['url'] == f'/applications/{saved.id}' for link in result['links'])
+            assert any(link['url'] == f'/applications/detail/?id={saved.id}' for link in result['links'])
     finally:
         async with AsyncSessionLocal() as session:
             await session.execute(delete(JobPosting).where(JobPosting.id == job_id))

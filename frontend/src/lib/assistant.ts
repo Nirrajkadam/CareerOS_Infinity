@@ -7,7 +7,7 @@ export function chooseIndianVoice<T extends VoiceOption>(voices: T[], language: 
 }
 export function safeAssistantPath(path: string): boolean {
   return /^\/(?:jobs|resume|applications|profile)?$/.test(path)
-    || /^\/applications\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path);
+    || /^\/applications\/detail\/\?id=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path);
 }
 export function recognitionText(results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>, finalOnly = false): string {
   return Array.from(results).filter(result => !finalOnly || result.isFinal).map(result => result[0].transcript).join(' ').trim();

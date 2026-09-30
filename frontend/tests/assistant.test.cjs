@@ -22,5 +22,5 @@ test('recognition collects all final segments without sending interim text', () 
 });
 test('assistant links cannot navigate to external or unsupported destinations', () => {
   for (const unsafe of ['https://evil.test', '//evil.test', '/settings/credentials', '/jobs?next=https://evil.test', '/applications/../profile', 'javascript:alert(1)']) assert.equal(safeAssistantPath(unsafe), false);
-  for (const safe of ['/', '/resume', '/jobs', '/applications/01234567-1234-1234-1234-012345678901']) assert.equal(safeAssistantPath(safe), true);
+  for (const safe of ['/', '/resume', '/jobs', '/applications/detail/?id=01234567-1234-1234-1234-012345678901']) assert.equal(safeAssistantPath(safe), true);
 });

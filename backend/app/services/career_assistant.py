@@ -113,7 +113,7 @@ class CareerAssistant:
                     .order_by(Application.created_at.desc()).limit(15))).scalars().all()
             return {'summary': f'Read {len(apps)} recent application records.',
                     'applications': [{'id': str(a.id), 'company': a.company, 'role': a.role, 'status': a.status,
-                                      'stage': a.application_stage, 'url': f'/applications/{a.id}'} for a in apps], 'url': '/applications'}
+                                      'stage': a.application_stage, 'url': f'/applications/detail/?id={a.id}'} for a in apps], 'url': '/applications'}
         job = (await session.execute(select(JobPosting).where(JobPosting.id == args.job_id,
                                                               JobPosting.status == 'ACTIVE'))).scalar_one_or_none()
         if job is None:
@@ -128,7 +128,7 @@ class CareerAssistant:
         result = await ApplicationService.create_application(session=session, user=user, job_id=str(job.id), source='ASSISTANT')
         return {'summary': ('Existing application record found.' if result['status'] == 'DUPLICATE'
                             else f'Prepared an application record for {job.title} at {job.company}.'),
-                'application': result, 'submitted': False, 'url': f"/applications/{result['id']}"}
+                'application': result, 'submitted': False, 'url': f"/applications/detail/?id={result['id']}"}
 
     @classmethod
     async def run(cls, request: ChatRequest, session: AsyncSession, user: User):

@@ -142,7 +142,7 @@ export default function ApplicationTrackerPage() {
                   )}
 
                   <Link
-                    href={`/applications/${app.id}`}
+                    href={`/applications/detail/?id=${encodeURIComponent(app.id)}`}
                     className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-medium text-xs border border-neutral-700 transition flex items-center gap-1"
                   >
                     View Details & Approval <ArrowRight size={12} />

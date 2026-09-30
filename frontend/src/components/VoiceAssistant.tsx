@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Bot, Mic, MicOff, Send, Square, Volume2, X } from 'lucide-react';
 import { apiFetch, apiRequest } from '../lib/apiClient';
 import { AssistantLanguage, chooseIndianVoice, recognitionText, safeAssistantPath } from '../lib/assistant';
@@ -200,7 +201,7 @@ export default function VoiceAssistant() {
           <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
           {message.result && message.result.steps.length > 0 && <ul className="mt-3 space-y-1 border-t border-neutral-800 pt-2 text-xs">
             {message.result.steps.map((step, stepIndex) => <li key={stepIndex} className={step.status === 'completed' ? 'text-emerald-300' : 'text-amber-200'}>{step.status === 'completed' ? '✓' : '!'} {step.summary}</li>)}</ul>}
-          {message.result?.links.filter(link => safeAssistantPath(link.url)).map(link => <a key={link.url} href={link.url} className="mt-2 block text-xs text-emerald-300 underline">{link.label} Open →</a>)}
+          {message.result?.links.filter(link => safeAssistantPath(link.url)).map(link => <Link key={link.url} href={link.url} className="mt-2 block text-xs text-emerald-300 underline">{link.label} Open →</Link>)}
           {message.role === 'assistant' && <button onClick={() => void speak(message.content)} aria-label="Read reply" className="mt-2 inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-white"><Volume2 size={13} />Read reply</button>}
         </article>)}
         {busy && <p role="status" className="text-sm text-emerald-300">Working on your instruction…</p>}
