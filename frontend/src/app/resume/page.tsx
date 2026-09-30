@@ -13,6 +13,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 export default function ResumeManagementPage() {
   const [parsingStep, setParsingStep] = useState<'IDLE' | 'UPLOADING' | 'PARSING' | 'STRUCTURING' | 'READY'>('IDLE');
   const [resumes, setResumes] = useState<any[]>([]);
@@ -29,7 +31,7 @@ export default function ResumeManagementPage() {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      const res = await fetch('http://localhost:8000/api/v1/resumes', { headers });
+      const res = await fetch(`${API_BASE_URL}/api/v1/resumes`, { headers });
       if (res.ok) {
         const data = await res.json();
         setResumes(data);
@@ -60,7 +62,7 @@ export default function ResumeManagementPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch('http://localhost:8000/api/v1/resumes/upload', {
+      const res = await fetch(`${API_BASE_URL}/api/v1/resumes/upload`, {
         method: 'POST',
         headers,
         body: formData,

@@ -16,6 +16,8 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 export default function JobsFeedPage() {
   const [query, setQuery] = useState('Data Engineer');
   const [indiaOnly, setIndiaOnly] = useState(true);
@@ -39,7 +41,7 @@ export default function JobsFeedPage() {
 
   async function fetchSourceHealth() {
     try {
-      const res = await fetch('http://localhost:8000/api/v1/jobs/source-health');
+      const res = await fetch(`${API_BASE_URL}/api/v1/jobs/source-health`);
       if (res.ok) {
         const data = await res.json();
         setSourceHealth(data);
@@ -52,7 +54,7 @@ export default function JobsFeedPage() {
   async function fetchJobs() {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/jobs/discover?query=${encodeURIComponent(query)}&india_only=${indiaOnly}`);
+      const res = await fetch(`${API_BASE_URL}/api/v1/jobs/discover?query=${encodeURIComponent(query)}&india_only=${indiaOnly}`);
       if (res.ok) {
         const data = await res.json();
         setJobs(data);

@@ -10,6 +10,8 @@ import {
   XCircle
 } from 'lucide-react';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 export default function ApplicationTrackerPage() {
   const [applications, setApplications] = useState<any[]>([]);
   const [filter, setFilter] = useState<'ALL' | 'NEEDS_APPROVAL' | 'IN_PROGRESS' | 'VERIFIED' | 'FAILED'>('ALL');
@@ -21,7 +23,7 @@ export default function ApplicationTrackerPage() {
 
   async function fetchApplications() {
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications');
+      const res = await fetch(`${API_BASE_URL}/api/v1/applications`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {

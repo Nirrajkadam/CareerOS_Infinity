@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic, MicOff, Volume2, Sparkles, X, Bot, Terminal, Send, RefreshCw, ShieldCheck, UserCheck, Compass } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/apiClient';
 
 export default function VoiceAssistant() {
   const router = useRouter();
@@ -124,7 +125,7 @@ export default function VoiceAssistant() {
     setTranscript(cmdText);
 
     try {
-      const res = await fetch('http://localhost:8000/api/v1/jobpilot/agent-command', {
+      const res = await fetch(`${API_BASE_URL}/api/v1/jobpilot/agent-command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: cmdText })

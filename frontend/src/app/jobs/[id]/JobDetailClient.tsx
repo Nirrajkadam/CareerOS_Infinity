@@ -15,6 +15,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 export default function JobDetailClient({ params }: { params: { id: string } }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -53,7 +55,7 @@ export default function JobDetailClient({ params }: { params: { id: string } }) 
 
   async function handlePrepareApplication() {
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications/apply', {
+      const res = await fetch(`${API_BASE_URL}/api/v1/applications/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

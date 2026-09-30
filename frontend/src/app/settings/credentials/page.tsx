@@ -9,6 +9,8 @@ import {
   LogIn
 } from 'lucide-react';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 export default function CredentialVaultPage() {
   const [portal, setPortal] = useState('naukri');
   const [username, setUsername] = useState('');
@@ -40,7 +42,7 @@ export default function CredentialVaultPage() {
   async function handleTestLogin() {
     setTestingLogin(true);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications/launch-session', {
+      const res = await fetch(`${API_BASE_URL}/api/v1/applications/launch-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ portal })

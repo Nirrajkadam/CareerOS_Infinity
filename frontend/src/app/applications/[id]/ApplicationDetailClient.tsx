@@ -14,6 +14,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 export default function ApplicationDetailClient({ params }: { params: { id: string } }) {
   const [app, setApp] = useState<any>(null);
   const [level2Approved, setLevel2Approved] = useState(false);
@@ -33,7 +35,7 @@ export default function ApplicationDetailClient({ params }: { params: { id: stri
 
   async function fetchAppDetails() {
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications');
+      const res = await fetch(`${API_BASE_URL}/api/v1/applications`);
       if (res.ok) {
         const apps = await res.json();
         const found = apps.find((a: any) => a.id === params.id) || apps[0];
@@ -48,7 +50,7 @@ export default function ApplicationDetailClient({ params }: { params: { id: stri
   async function handleLevel2ConfirmSubmit() {
     setLevel2Approved(true);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications/verify-login', {
+      const res = await fetch(`${API_BASE_URL}/api/v1/applications/verify-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ portal: app?.company?.toLowerCase() || 'naukri', verified: true })
@@ -67,7 +69,7 @@ export default function ApplicationDetailClient({ params }: { params: { id: stri
     setVerifyingEmail(true);
     setEmailSyncResult(null);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/applications/sync-emails', {
+      const res = await fetch(`${API_BASE_URL}/api/v1/applications/sync-emails`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ application_id: params.id, company: app?.company })

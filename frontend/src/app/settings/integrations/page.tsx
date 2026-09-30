@@ -9,6 +9,8 @@ import {
   Activity
 } from 'lucide-react';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 export default function SourceIntegrationsPage() {
   const [sources, setSources] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,7 @@ export default function SourceIntegrationsPage() {
 
   async function fetchSourceHealth() {
     try {
-      const res = await fetch('http://localhost:8000/api/v1/jobs/source-health');
+      const res = await fetch(`${API_BASE_URL}/api/v1/jobs/source-health`);
       if (res.ok) {
         const data = await res.json();
         setSources(data.map((s: any) => ({ ...s, enabled: true })));
