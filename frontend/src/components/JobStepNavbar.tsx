@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { 
   Globe, 
   ChevronDown, 
@@ -12,7 +13,10 @@ import {
   Send, 
   Sun,
   Moon,
-  ArrowRight
+  UserCheck,
+  KeyRound,
+  Sliders,
+  LayoutDashboard
 } from 'lucide-react';
 
 interface JobStepNavbarProps {
@@ -21,6 +25,7 @@ interface JobStepNavbarProps {
 }
 
 export default function JobStepNavbar({ isDarkMode = true, onToggleTheme }: JobStepNavbarProps) {
+  const pathname = usePathname();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<'US' | 'IN' | 'UK' | 'EU'>('US');
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
@@ -44,191 +49,60 @@ export default function JobStepNavbar({ isDarkMode = true, onToggleTheme }: JobS
     { code: 'EU', label: 'EU (European Union)' },
   ];
 
+  const mainNavItems = [
+    { name: 'Home', href: '/', icon: LayoutDashboard },
+    { name: 'Resumes', href: '/resume', icon: FileText },
+    { name: 'Jobs Feed', href: '/jobs', icon: Briefcase },
+    { name: 'Applications', href: '/applications', icon: Send },
+    { name: 'Master Profile', href: '/profile', icon: UserCheck },
+    { name: 'Vault', href: '/settings/credentials', icon: KeyRound },
+    { name: 'Integrations', href: '/settings/integrations', icon: Sliders },
+  ];
+
   return (
     <div ref={navRef} className="sticky top-0 z-50 w-full px-4 pt-4 pb-2 transition-all">
-      <div className={`max-w-6xl mx-auto rounded-full px-5 py-2.5 flex items-center justify-between transition-colors duration-300 ${
+      <div className={`max-w-6xl mx-auto rounded-full px-5 py-2 flex items-center justify-between transition-colors duration-300 ${
         isDarkMode 
           ? 'bg-[#0d0d12]/90 backdrop-blur-xl border border-neutral-800 shadow-[0_4px_24px_rgba(0,0,0,0.6)] text-white' 
           : 'bg-white/95 backdrop-blur-md border border-gray-200/90 shadow-[0_2px_12px_rgba(0,0,0,0.06)] text-neutral-900'
       }`}>
         
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group">
+        <Link href="/" className="flex items-center gap-2.5 group shrink-0">
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-extrabold text-xl tracking-tighter shadow-sm group-hover:scale-105 transition-transform ${
-            isDarkMode ? 'bg-white text-black' : 'bg-black text-white'
+            isDarkMode ? 'bg-[#eb5a28] text-white' : 'bg-black text-white'
           }`}>
             C
           </div>
-          <span className={`font-extrabold text-xl tracking-tight flex items-center ${isDarkMode ? 'text-white' : 'text-neutral-900'}`}>
-            CareerOS<span className="text-neutral-500 font-medium text-base">.io</span>
+          <span className={`font-extrabold text-lg sm:text-xl tracking-tight flex items-center ${isDarkMode ? 'text-white' : 'text-neutral-900'}`}>
+            CareerOS<span className="text-[#eb5a28] font-semibold text-sm sm:text-base">.io</span>
           </span>
         </Link>
 
-        {/* Center Nav Dropdowns */}
-        <nav className={`hidden md:flex items-center gap-6 text-sm font-medium ${
+        {/* Unified Navigation Links */}
+        <nav className={`hidden lg:flex items-center gap-1.5 text-xs font-semibold ${
           isDarkMode ? 'text-neutral-300' : 'text-neutral-700'
         }`}>
-          
-          {/* Resume Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setActiveDropdown(activeDropdown === 'resume' ? null : 'resume')}
-              onMouseEnter={() => setActiveDropdown('resume')}
-              className={`flex items-center gap-1 transition-colors py-1 cursor-pointer ${
-                isDarkMode ? 'hover:text-white' : 'hover:text-neutral-950'
-              }`}
-            >
-              <span>Resume</span>
-              <ChevronDown size={14} className={`text-neutral-400 transition-transform ${activeDropdown === 'resume' ? 'rotate-180' : ''}`} />
-            </button>
-
-            {activeDropdown === 'resume' && (
-              <div 
-                onMouseLeave={() => setActiveDropdown(null)}
-                className={`absolute top-full left-0 mt-3 w-64 rounded-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 ${
-                  isDarkMode 
-                    ? 'bg-[#121217] border border-neutral-800 shadow-2xl text-neutral-200' 
-                    : 'bg-white border border-gray-200 shadow-xl text-neutral-800'
+          {mainNavItems.map((item) => {
+            const isActive = pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-[#eb5a28] text-white font-bold shadow-md shadow-orange-950/40'
+                    : isDarkMode 
+                    ? 'hover:text-white hover:bg-neutral-800/80 text-neutral-300' 
+                    : 'hover:text-neutral-950 hover:bg-gray-100 text-neutral-700'
                 }`}
               >
-                <Link
-                  href="/resume"
-                  className={`flex items-start gap-3 p-2.5 rounded-xl transition group ${
-                    isDarkMode ? 'hover:bg-neutral-800/70' : 'hover:bg-orange-50/60'
-                  }`}
-                >
-                  <div className="p-2 rounded-lg bg-orange-500/20 text-[#eb5a28] mt-0.5">
-                    <FileText size={16} />
-                  </div>
-                  <div>
-                    <div className={`font-semibold text-xs transition group-hover:text-[#eb5a28] ${isDarkMode ? 'text-white' : 'text-neutral-900'}`}>
-                      AI Resume Optimizer
-                    </div>
-                    <div className="text-[11px] text-neutral-400 leading-tight mt-0.5">Score CV & enhance bullet points to 90+ ATS match</div>
-                  </div>
-                </Link>
-
-                <Link
-                  href="/resume"
-                  className={`flex items-start gap-3 p-2.5 rounded-xl transition group ${
-                    isDarkMode ? 'hover:bg-neutral-800/70' : 'hover:bg-emerald-50/60'
-                  }`}
-                >
-                  <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 mt-0.5">
-                    <ShieldCheck size={16} />
-                  </div>
-                  <div>
-                    <div className={`font-semibold text-xs transition group-hover:text-emerald-400 ${isDarkMode ? 'text-white' : 'text-neutral-900'}`}>
-                      TruthGuard Safety Check
-                    </div>
-                    <div className="text-[11px] text-neutral-400 leading-tight mt-0.5">Never hallucinate experience or fake skills</div>
-                  </div>
-                </Link>
-              </div>
-            )}
-          </div>
-
-          {/* Job Application Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setActiveDropdown(activeDropdown === 'jobs' ? null : 'jobs')}
-              onMouseEnter={() => setActiveDropdown('jobs')}
-              className={`flex items-center gap-1 transition-colors py-1 cursor-pointer ${
-                isDarkMode ? 'hover:text-white' : 'hover:text-neutral-950'
-              }`}
-            >
-              <span>Job application</span>
-              <ChevronDown size={14} className={`text-neutral-400 transition-transform ${activeDropdown === 'jobs' ? 'rotate-180' : ''}`} />
-            </button>
-
-            {activeDropdown === 'jobs' && (
-              <div 
-                onMouseLeave={() => setActiveDropdown(null)}
-                className={`absolute top-full left-0 mt-3 w-68 rounded-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 ${
-                  isDarkMode 
-                    ? 'bg-[#121217] border border-neutral-800 shadow-2xl text-neutral-200' 
-                    : 'bg-white border border-gray-200 shadow-xl text-neutral-800'
-                }`}
-              >
-                <Link
-                  href="/jobs"
-                  className={`flex items-start gap-3 p-2.5 rounded-xl transition group ${
-                    isDarkMode ? 'hover:bg-neutral-800/70' : 'hover:bg-orange-50/60'
-                  }`}
-                >
-                  <div className="p-2 rounded-lg bg-orange-500/20 text-[#eb5a28] mt-0.5">
-                    <Sparkles size={16} />
-                  </div>
-                  <div>
-                    <div className={`font-semibold text-xs transition group-hover:text-[#eb5a28] ${isDarkMode ? 'text-white' : 'text-neutral-900'}`}>
-                      Weekly AI Suggestions
-                    </div>
-                    <div className="text-[11px] text-neutral-400 leading-tight mt-0.5">Handpicked roles matched to your background</div>
-                  </div>
-                </Link>
-
-                <Link
-                  href="/applications"
-                  className={`flex items-start gap-3 p-2.5 rounded-xl transition group ${
-                    isDarkMode ? 'hover:bg-neutral-800/70' : 'hover:bg-blue-50/60'
-                  }`}
-                >
-                  <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 mt-0.5">
-                    <Send size={16} />
-                  </div>
-                  <div>
-                    <div className={`font-semibold text-xs transition group-hover:text-blue-400 ${isDarkMode ? 'text-white' : 'text-neutral-900'}`}>
-                      Auto-Apply Bot (27+ Portals)
-                    </div>
-                    <div className="text-[11px] text-neutral-400 leading-tight mt-0.5">Autonomous direct submit with browser telemetry</div>
-                  </div>
-                </Link>
-              </div>
-            )}
-          </div>
-
-          {/* Cover Letter Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setActiveDropdown(activeDropdown === 'cover' ? null : 'cover')}
-              onMouseEnter={() => setActiveDropdown('cover')}
-              className={`flex items-center gap-1 transition-colors py-1 cursor-pointer ${
-                isDarkMode ? 'hover:text-white' : 'hover:text-neutral-950'
-              }`}
-            >
-              <span>Cover letter</span>
-              <ChevronDown size={14} className={`text-neutral-400 transition-transform ${activeDropdown === 'cover' ? 'rotate-180' : ''}`} />
-            </button>
-
-            {activeDropdown === 'cover' && (
-              <div 
-                onMouseLeave={() => setActiveDropdown(null)}
-                className={`absolute top-full left-0 mt-3 w-64 rounded-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 ${
-                  isDarkMode 
-                    ? 'bg-[#121217] border border-neutral-800 shadow-2xl text-neutral-200' 
-                    : 'bg-white border border-gray-200 shadow-xl text-neutral-800'
-                }`}
-              >
-                <Link
-                  href="/resume"
-                  className={`flex items-start gap-3 p-2.5 rounded-xl transition group ${
-                    isDarkMode ? 'hover:bg-neutral-800/70' : 'hover:bg-orange-50/60'
-                  }`}
-                >
-                  <div className="p-2 rounded-lg bg-orange-500/20 text-[#eb5a28] mt-0.5">
-                    <Sparkles size={16} />
-                  </div>
-                  <div>
-                    <div className={`font-semibold text-xs transition group-hover:text-[#eb5a28] ${isDarkMode ? 'text-white' : 'text-neutral-900'}`}>
-                      Tailored Cover Letter
-                    </div>
-                    <div className="text-[11px] text-neutral-400 leading-tight mt-0.5">Custom company-specific narratives with zero fluff</div>
-                  </div>
-                </Link>
-              </div>
-            )}
-          </div>
-
+                <Icon size={14} className={isActive ? 'text-white' : 'text-neutral-400'} />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Right Actions */}
@@ -251,7 +125,7 @@ export default function JobStepNavbar({ isDarkMode = true, onToggleTheme }: JobS
           )}
 
           {/* Country Selector */}
-          <div className="relative">
+          <div className="relative hidden sm:block">
             <button
               onClick={() => setCountryDropdownOpen(!countryDropdownOpen)}
               className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full transition ${
@@ -292,29 +166,42 @@ export default function JobStepNavbar({ isDarkMode = true, onToggleTheme }: JobS
             )}
           </div>
 
-          {/* Log in Button */}
-          <Link
-            href="/jobs"
-            className={`px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition ${
-              isDarkMode 
-                ? 'border border-neutral-700 text-neutral-200 hover:bg-neutral-800' 
-                : 'border border-gray-300 text-neutral-800 hover:bg-gray-50'
-            }`}
-          >
-            Log in
-          </Link>
+          {/* TruthGuard Active Indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 bg-[#111116] px-3 py-1 rounded-full border border-neutral-800 text-[11px] text-neutral-300 font-semibold">
+            <ShieldCheck size={13} className="text-emerald-400" />
+            <span className="text-emerald-400 font-bold">TruthGuard</span>
+          </div>
 
           {/* Get started CTA Button */}
           <Link
             href="/resume"
             className="px-4 sm:px-5 py-1.5 sm:py-2 rounded-full bg-[#eb5a28] hover:bg-[#d94e1d] text-white text-xs sm:text-sm font-bold shadow-md shadow-orange-950/40 transition active:scale-95 flex items-center gap-1"
           >
-            <span>Get started</span>
+            <span>Get Started</span>
           </Link>
 
         </div>
 
       </div>
+
+      {/* Mobile Nav Menu */}
+      <div className="lg:hidden flex items-center justify-center gap-2 mt-2 py-1.5 px-3 bg-[#0d0d12]/90 backdrop-blur-md border border-neutral-800 rounded-full max-w-md mx-auto overflow-x-auto text-xs">
+        {mainNavItems.map((item) => {
+          const isActive = pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`px-2.5 py-1 rounded-full whitespace-nowrap transition ${
+                isActive ? 'bg-[#eb5a28] text-white font-bold' : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              {item.name}
+            </Link>
+          );
+        })}
+      </div>
+
     </div>
   );
 }

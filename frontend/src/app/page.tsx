@@ -96,12 +96,6 @@ export default function JobStepLandingPage() {
         : 'bg-[#fff8f5] text-neutral-900 selection:bg-orange-200'
     }`}>
       
-      {/* 1. Floating Top Navigation Bar with Dark Theme */}
-      <JobStepNavbar 
-        isDarkMode={isDarkMode} 
-        onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-      />
-
       {/* Hero Section */}
       <section className="relative pt-12 pb-20 px-4 max-w-6xl mx-auto flex flex-col items-center text-center">
         

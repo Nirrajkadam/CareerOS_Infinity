@@ -152,76 +152,81 @@ export default function JobsFeedPage() {
       {/* Header */}
       <div className="border-b border-neutral-800 pb-4 flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            Authentic Job Discovery Feed <Briefcase size={20} className="text-emerald-400" />
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2 border bg-orange-500/10 border-orange-500/30 text-[#eb5a28]">
+            <Briefcase size={13} />
+            <span>AI JOB DISCOVERY</span>
+          </div>
+          <h1 className="text-3xl font-extrabold text-white flex items-center gap-2">
+            Authentic Job Discovery Feed <Sparkles size={22} className="text-[#eb5a28]" />
           </h1>
-          <p className="text-xs text-neutral-400 mt-1">
+          <p className="text-sm text-neutral-400 mt-1">
             Explore real live listings directly from company ATS endpoints and candidate browser sessions.
           </p>
         </div>
       </div>
 
       {/* Source Health Indicator Strip */}
-      <div className="bg-neutral-900/60 p-4 rounded-xl border border-neutral-800 space-y-2">
-        <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">Live Job Source Health Telemetry</span>
+      <div className="bg-[#0d0d12] p-5 rounded-2xl border border-neutral-800 space-y-3 shadow-xl">
+        <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider block">Live Job Source Health Telemetry</span>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {sourceHealth.map((src, idx) => (
-            <div key={idx} className="p-2.5 bg-neutral-950 rounded-lg border border-neutral-800 flex flex-col gap-1">
-              <div className="flex justify-between items-center text-xs font-semibold text-white">
+            <div key={idx} className="p-3 bg-[#111116] rounded-xl border border-neutral-800 flex flex-col gap-1 hover:border-orange-500/30 transition-colors">
+              <div className="flex justify-between items-center text-xs font-bold text-white">
                 <span>{src.name}</span>
               </div>
-              <span className="text-[10px] font-medium text-emerald-400">{src.badge}</span>
-              <span className="text-[9px] text-neutral-500">{src.reliability}</span>
+              <span className="text-xs font-medium text-[#eb5a28]">{src.badge}</span>
+              <span className="text-[10px] text-neutral-500">{src.reliability}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Search & Main Filter Controls Bar */}
-      <div className="space-y-3 bg-neutral-900/60 p-4 rounded-xl border border-neutral-800">
+      <div className="space-y-4 bg-[#0d0d12] p-5 rounded-2xl border border-neutral-800 shadow-xl">
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative flex-1 w-full">
-            <Search size={16} className="absolute left-3 top-3 text-neutral-500" />
+            <Search size={16} className="absolute left-3.5 top-3.5 text-neutral-500" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search target role (e.g. Data Engineer, Python Developer)..."
-              className="w-full pl-9 pr-4 py-2 bg-neutral-950 border border-neutral-800 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-[#111116] border border-neutral-800 rounded-xl text-xs text-white focus:outline-none focus:border-[#eb5a28] transition-colors"
             />
           </div>
 
           {/* Location Filter Toggle */}
           <button
             onClick={() => setIndiaOnly(!indiaOnly)}
-            className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+            className={`px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${
               indiaOnly 
-                ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300' 
-                : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                ? 'bg-orange-500/10 border-orange-500/40 text-[#eb5a28]' 
+                : 'bg-[#111116] border-neutral-800 text-neutral-400 hover:text-white'
             }`}
           >
-            <MapPin size={14} className={indiaOnly ? 'text-emerald-400' : 'text-neutral-500'} />
+            <MapPin size={14} className={indiaOnly ? 'text-[#eb5a28]' : 'text-neutral-500'} />
             {indiaOnly ? '🇮🇳 India Jobs' : '🌐 Global Jobs'}
           </button>
 
           {/* Filter Drawer Trigger Button */}
           <button
             onClick={() => setShowFilterDrawer(!showFilterDrawer)}
-            className={`px-3.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+            className={`px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${
               activeFiltersCount > 0 || showFilterDrawer
-                ? 'bg-neutral-800 border-emerald-500 text-emerald-400'
-                : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700'
+                ? 'bg-[#161620] border-[#eb5a28] text-[#eb5a28]'
+                : 'bg-[#111116] border-neutral-800 text-neutral-300 hover:border-neutral-700'
             }`}
           >
             <SlidersHorizontal size={14} />
-            Filters {activeFiltersCount > 0 && <span className="px-1.5 py-0.2 rounded-full bg-emerald-500 text-black text-[10px] font-bold">{activeFiltersCount}</span>}
+            Filters {activeFiltersCount > 0 && <span className="px-2 py-0.5 rounded-full bg-[#eb5a28] text-white text-[10px] font-extrabold">{activeFiltersCount}</span>}
           </button>
 
           <button
             onClick={fetchJobs}
-            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 w-full sm:w-auto"
+            className="px-6 py-2.5 bg-[#eb5a28] hover:bg-[#d94e1d] text-white font-bold text-xs rounded-xl transition shadow-md shadow-orange-950/40 flex items-center gap-2 active:scale-95 whitespace-nowrap"
           >
-            <Search size={14} /> Search Live Jobs
+            <Search size={14} />
+            <span>Search Live Jobs</span>
           </button>
         </div>
 

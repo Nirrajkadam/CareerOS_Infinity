@@ -126,60 +126,60 @@ export default function MasterProfilePage() {
       <div className="border-b border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-white">{personalInfo.name}</h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-bold">
-              VERIFIED FROM RESUME
+            <h1 className="text-3xl font-extrabold text-white">{personalInfo.name}</h1>
+            <span className="px-3 py-1 rounded-full bg-orange-500/10 text-[#eb5a28] border border-orange-500/30 text-xs font-bold">
+              VERIFIED CANDIDATE PROFILE
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-400 mt-1.5 font-mono">
-            <span className="flex items-center gap-1"><Mail size={12} className="text-emerald-400" /> {personalInfo.email}</span>
-            <span className="flex items-center gap-1"><Phone size={12} className="text-emerald-400" /> {personalInfo.phone}</span>
-            <span className="flex items-center gap-1"><Linkedin size={12} className="text-emerald-400" /> {personalInfo.linkedin}</span>
-            <span className="flex items-center gap-1"><Github size={12} className="text-emerald-400" /> {personalInfo.github}</span>
+          <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-400 mt-2 font-mono">
+            <span className="flex items-center gap-1"><Mail size={13} className="text-[#eb5a28]" /> {personalInfo.email}</span>
+            <span className="flex items-center gap-1"><Phone size={13} className="text-[#eb5a28]" /> {personalInfo.phone}</span>
+            <span className="flex items-center gap-1"><Linkedin size={13} className="text-[#eb5a28]" /> {personalInfo.linkedin}</span>
+            <span className="flex items-center gap-1"><Github size={13} className="text-[#eb5a28]" /> {personalInfo.github}</span>
           </div>
         </div>
 
         <button
           onClick={handleSaveProfile}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-lg shadow-emerald-900/30 shrink-0"
+          className="px-5 py-2.5 bg-[#eb5a28] hover:bg-[#d94e1d] text-white font-bold text-xs rounded-full transition-all flex items-center gap-2 shadow-lg shadow-orange-950/40 shrink-0 active:scale-95"
         >
-          <Save size={14} /> {savedMessage ? 'Saved to Knowledge Graph!' : 'Save Master Profile'}
+          <Save size={15} /> {savedMessage ? 'Saved to Knowledge Graph!' : 'Save Master Profile'}
         </button>
       </div>
 
       {/* Professional Summary Box */}
-      <div className="bg-neutral-900/80 p-5 rounded-xl border border-neutral-800 space-y-2">
-        <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-          <BookOpen size={14} /> Professional Summary
+      <div className="bg-[#0d0d12] p-6 rounded-2xl border border-neutral-800 space-y-2.5 shadow-xl">
+        <h3 className="text-xs font-bold text-[#eb5a28] uppercase tracking-wider flex items-center gap-1.5">
+          <BookOpen size={15} /> Professional Summary
         </h3>
-        <p className="text-xs text-neutral-300 leading-relaxed font-sans">
+        <p className="text-sm text-neutral-300 leading-relaxed font-sans">
           {personalInfo.summary}
         </p>
       </div>
 
       {/* Candidate Status Banner */}
-      <div className="bg-neutral-900/80 p-4 rounded-xl border border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="bg-[#0d0d12] p-5 rounded-2xl border border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center gap-3">
-          <ShieldCheck size={20} className="text-emerald-400 shrink-0" />
+          <ShieldCheck size={22} className="text-emerald-400 shrink-0" />
           <div>
-            <span className="text-xs font-bold text-white block">Candidate Status: {isFresher ? 'Fresher / Entry-Level (0 Years Commercial Exp)' : 'Experienced Professional'}</span>
-            <span className="text-[11px] text-neutral-400">TruthGuard Safety: Resumes & proposals will strictly emphasize your PG-DBDA, B.E. Degree & Multi-Agent Projects without fabricating experience.</span>
+            <span className="text-sm font-bold text-white block">Candidate Status: {isFresher ? 'Fresher / Entry-Level (0 Years Commercial Exp)' : 'Experienced Professional'}</span>
+            <span className="text-xs text-neutral-400">TruthGuard Safety: Resumes & proposals will strictly emphasize your PG-DBDA, B.E. Degree & Multi-Agent Projects without fabricating experience.</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-neutral-950 p-1 rounded-lg border border-neutral-800 shrink-0">
+        <div className="flex items-center gap-1.5 bg-[#111116] p-1.5 rounded-full border border-neutral-800 shrink-0">
           <button
             onClick={() => setIsFresher(true)}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              isFresher ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:text-white'
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${
+              isFresher ? 'bg-[#eb5a28] text-white shadow-md' : 'text-neutral-400 hover:text-white'
             }`}
           >
             Fresher (0 Yrs)
           </button>
           <button
             onClick={() => setIsFresher(false)}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              !isFresher ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:text-white'
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${
+              !isFresher ? 'bg-[#eb5a28] text-white shadow-md' : 'text-neutral-400 hover:text-white'
             }`}
           >
             Experienced
@@ -197,29 +197,34 @@ export default function MasterProfilePage() {
           { key: 'experience', label: 'Work Experience', icon: Briefcase },
         ].map((tab) => {
           const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-                activeTab === tab.key
-                  ? 'bg-neutral-800 text-emerald-400 border border-neutral-700'
-                  : 'text-neutral-400 hover:text-neutral-200'
+              className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 ${
+                isActive
+                  ? 'bg-[#eb5a28] text-white shadow-md shadow-orange-950/40'
+                  : 'bg-[#0d0d12] text-neutral-400 hover:text-white border border-neutral-800 hover:border-neutral-700'
               }`}
             >
-              <Icon size={14} /> {tab.label}
+              <Icon size={14} />
+              {tab.label}
             </button>
           );
         })}
       </div>
 
+
       {/* Tab Content */}
-      <div className="bg-neutral-900/60 p-6 rounded-xl border border-neutral-800 space-y-6">
+      <div className="bg-[#0d0d12] p-6 rounded-2xl border border-neutral-800 space-y-6 shadow-xl">
         
         {/* Skills Tab */}
         {activeTab === 'skills' && (
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Extracted Technical Skills from Resume</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <Code size={16} className="text-[#eb5a28]" /> Extracted Technical Skills from Resume
+            </h3>
 
             <div className="flex gap-2">
               <input
@@ -227,11 +232,11 @@ export default function MasterProfilePage() {
                 value={newSkill}
                 onChange={(e) => setNewSkill(e.target.value)}
                 placeholder="Add new skill (e.g. Terraform, Kubernetes)..."
-                className="flex-1 px-3 py-2 bg-neutral-950 border border-neutral-800 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                className="flex-1 px-4 py-2.5 bg-[#111116] border border-neutral-800 rounded-xl text-xs text-white focus:outline-none focus:border-[#eb5a28] transition-colors"
               />
               <button
                 onClick={handleAddSkill}
-                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-medium text-xs rounded-lg transition border border-neutral-700 flex items-center gap-1"
+                className="px-5 py-2.5 bg-[#eb5a28] hover:bg-[#d94e1d] text-white font-bold text-xs rounded-xl transition shadow-md shadow-orange-950/40 flex items-center gap-1.5 active:scale-95"
               >
                 <Plus size={14} /> Add Skill
               </button>
@@ -239,7 +244,7 @@ export default function MasterProfilePage() {
 
             <div className="flex flex-wrap gap-2 pt-2">
               {skills.map((skill, idx) => (
-                <span key={idx} className="px-3 py-1.5 rounded-lg bg-neutral-950 text-emerald-300 border border-neutral-800 text-xs font-mono font-medium flex items-center gap-2">
+                <span key={idx} className="px-3.5 py-1.5 rounded-full bg-[#161620] text-neutral-200 border border-neutral-800 text-xs font-medium flex items-center gap-2 hover:border-orange-500/40 transition-colors">
                   {skill}
                   <button onClick={() => handleDeleteSkill(skill)} className="text-neutral-500 hover:text-rose-400 transition">
                     <Trash2 size={12} />
@@ -253,15 +258,17 @@ export default function MasterProfilePage() {
         {/* Projects Tab */}
         {activeTab === 'projects' && (
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Academic & Technical Projects</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <Target size={16} className="text-[#eb5a28]" /> Academic & Technical Projects
+            </h3>
             {projectsList.map((proj, idx) => (
-              <div key={idx} className="p-5 bg-neutral-950 rounded-xl border border-neutral-800 space-y-3">
+              <div key={idx} className="p-5 bg-[#111116] rounded-2xl border border-neutral-800 space-y-3">
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="text-sm font-bold text-white">{proj.title}</h4>
-                    <span className="text-[10px] text-neutral-400">Duration: {proj.duration}</span>
+                    <span className="text-xs text-neutral-400">Duration: {proj.duration}</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-900 font-mono text-[10px]">
+                  <span className="px-3 py-1 rounded-full bg-orange-500/10 text-[#eb5a28] border border-orange-500/30 text-xs font-mono font-bold">
                     {proj.tech}
                   </span>
                 </div>
