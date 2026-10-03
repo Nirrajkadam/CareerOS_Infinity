@@ -9,7 +9,7 @@ import uuid
 import datetime
 from typing import Optional, Dict, Any, List
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Float, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -25,7 +25,7 @@ class JobDiscoveryRun(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     query: Mapped[str] = mapped_column(String(255), nullable=False)
-    sources: Mapped[Optional[List[str]]] = mapped_column(JSONB, nullable=True)
+    sources: Mapped[Optional[List[str]]] = mapped_column(JSONType, nullable=True)
 
     status: Mapped[str] = mapped_column(String(50), default="RUNNING", nullable=False, index=True)  # RUNNING / COMPLETED / PAUSED / STOPPED / FAILED
     jobs_discovered_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -33,7 +33,7 @@ class JobDiscoveryRun(Base):
     jobs_duplicate_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     jobs_risk_blocked_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    logs_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, default=dict)
+    logs_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONType, default=dict)
     started_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, nullable=False
     )
@@ -59,7 +59,7 @@ class SkillGapAggregate(Base):
 
     importance_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     learning_priority: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    target_roles: Mapped[Optional[List[str]]] = mapped_column(JSONB, default=list)
+    target_roles: Mapped[Optional[List[str]]] = mapped_column(JSONType, default=list)
 
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False

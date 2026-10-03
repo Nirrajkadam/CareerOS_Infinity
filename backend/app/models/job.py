@@ -2,10 +2,9 @@ import uuid
 import datetime
 from typing import Optional
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Float, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-from pgvector.sqlalchemy import Vector
 from app.core.database import Base
+from app.models.types import JSONType
 
 
 class JobPosting(Base):
@@ -78,10 +77,10 @@ class JobPosting(Base):
     normalized_company: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
 
     # AI-extracted intelligence (structured JD analysis)
-    jd_intelligence: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    jd_intelligence: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
 
     # Vector embedding for semantic search
-    embedding: Mapped[Optional[list]] = mapped_column(Vector(1536), nullable=True)
+    embedding: Mapped[Optional[list]] = mapped_column(JSONType, nullable=True)
 
     # Audit
     created_at: Mapped[datetime.datetime] = mapped_column(

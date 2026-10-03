@@ -9,7 +9,7 @@ import uuid
 import datetime
 from typing import Optional, Dict, Any, List
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Float, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -34,7 +34,7 @@ class ApplicationTrackingEvent(Base):
 
     actor: Mapped[str] = mapped_column(String(100), default="SYSTEM", nullable=False)  # SYSTEM / USER / RECRUITER / BROWSER
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, default=dict)
+    metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONType, default=dict)
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, nullable=False, index=True

@@ -1,9 +1,8 @@
 import uuid
 import datetime
-from sqlalchemy import String, ForeignKey, DateTime
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import String, ForeignKey, DateTime, JSON
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column
-from pgvector.sqlalchemy import Vector
 from app.core.database import Base
 
 class GraphNode(Base):
@@ -23,12 +22,12 @@ class GraphNode(Base):
         index=True
     )
     properties: Mapped[dict] = mapped_column(
-        JSONB,
+        JSONType,
         default=dict,
         nullable=False
     )
     embedding: Mapped[list] = mapped_column(
-        Vector(1536),
+        JSONType,
         nullable=True
     )
     created_at: Mapped[datetime.datetime] = mapped_column(
@@ -64,7 +63,7 @@ class GraphRelationship(Base):
         index=True
     )
     properties: Mapped[dict] = mapped_column(
-        JSONB,
+        JSONType,
         default=dict,
         nullable=False
     )

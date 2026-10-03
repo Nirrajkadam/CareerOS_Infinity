@@ -2,7 +2,7 @@ import uuid
 import datetime
 from typing import Optional, List
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -24,7 +24,7 @@ class MasterProfile(Base):
         index=True
     )
     personal_info: Mapped[dict] = mapped_column(
-        JSONB,
+        JSONType,
         default=dict,
         nullable=False
     )
@@ -135,7 +135,7 @@ class Experience(Base):
         nullable=True
     )
     achievements: Mapped[list] = mapped_column(
-        JSONB,
+        JSONType,
         default=list,
         nullable=False
     )
@@ -185,7 +185,7 @@ class Project(Base):
         nullable=True
     )
     technologies: Mapped[list] = mapped_column(
-        JSONB,
+        JSONType,
         default=list,
         nullable=False
     )
@@ -310,7 +310,7 @@ class UserSkill(Base):
         nullable=True
     )
     evidence: Mapped[list] = mapped_column(
-        JSONB,
+        JSONType,
         default=list,
         nullable=False
     )
@@ -355,7 +355,7 @@ class Evidence(Base):
         nullable=False
     )
     properties: Mapped[dict] = mapped_column(
-        JSONB,
+        JSONType,
         default=dict,
         nullable=False
     )
@@ -383,7 +383,7 @@ class CareerGoal(Base):
         index=True
     )
     target_roles: Mapped[list] = mapped_column(
-        JSONB,
+        JSONType,
         default=list,
         nullable=False
     )
@@ -392,17 +392,17 @@ class CareerGoal(Base):
         nullable=True
     )
     target_locations: Mapped[list] = mapped_column(
-        JSONB,
+        JSONType,
         default=list,
         nullable=False
     )
     preferred_companies: Mapped[list] = mapped_column(
-        JSONB,
+        JSONType,
         default=list,
         nullable=False
     )
     preferred_industries: Mapped[list] = mapped_column(
-        JSONB,
+        JSONType,
         default=list,
         nullable=False
     )
@@ -417,7 +417,7 @@ class CareerGoal(Base):
         nullable=False
     )
     application_preferences: Mapped[dict] = mapped_column(
-        JSONB,
+        JSONType,
         default=dict,
         nullable=False
     )

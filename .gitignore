@@ -43,3 +43,9 @@ Desktop.ini
 # Chrome profiles (contains local sessions & tokens)
 backend/chrome_profiles/
 chrome_profiles/
+
+# Local DBs and ZIP archives
+*.db
+*.zip
+backend/temp/
+

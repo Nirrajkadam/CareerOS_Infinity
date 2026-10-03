@@ -7,16 +7,26 @@ from app.core.config import settings
 
 logger = logging.getLogger("app.core.database")
 
-# Setup async PostgreSQL engine
+# Setup async database engine with conditional kwargs for PostgreSQL or SQLite
+engine_kwargs = {}
+if "postgresql" in settings.DATABASE_URL:
+    engine_kwargs = {
+        "pool_size": 10,
+        "max_overflow": 20,
+        "connect_args": {
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0
+        }
+    }
+elif "sqlite" in settings.DATABASE_URL:
+    engine_kwargs = {
+        "connect_args": {"check_same_thread": False}
+    }
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=10,
-    max_overflow=20,
-    connect_args={
-        "prepared_statement_cache_size": 0,
-        "statement_cache_size": 0
-    }
+    **engine_kwargs
 )
 
 # Async session maker binded to the engine

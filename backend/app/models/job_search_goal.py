@@ -6,7 +6,7 @@ import uuid
 import datetime
 from typing import Optional, Dict, Any, List
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Float, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -30,10 +30,10 @@ class JobSearchGoal(Base):
     target_location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     preferred_work_mode: Mapped[str] = mapped_column(String(50), default="REMOTE", nullable=False)  # REMOTE / HYBRID / ONSITE / ANY
 
-    preferred_industries: Mapped[Optional[List[str]]] = mapped_column(JSONB, default=list)
-    preferred_companies: Mapped[Optional[List[str]]] = mapped_column(JSONB, default=list)
-    blocked_companies: Mapped[Optional[List[str]]] = mapped_column(JSONB, default=list)
-    blocked_roles: Mapped[Optional[List[str]]] = mapped_column(JSONB, default=list)
+    preferred_industries: Mapped[Optional[List[str]]] = mapped_column(JSONType, default=list)
+    preferred_companies: Mapped[Optional[List[str]]] = mapped_column(JSONType, default=list)
+    blocked_companies: Mapped[Optional[List[str]]] = mapped_column(JSONType, default=list)
+    blocked_roles: Mapped[Optional[List[str]]] = mapped_column(JSONType, default=list)
 
     minimum_match_score: Mapped[float] = mapped_column(Float, default=60.0, nullable=False)
     daily_preparation_target: Mapped[int] = mapped_column(Integer, default=10, nullable=False)

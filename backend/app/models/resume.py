@@ -2,7 +2,7 @@ import uuid
 import datetime
 from typing import Optional
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 from app.core.database import Base
@@ -33,7 +33,7 @@ class Resume(Base):
         nullable=False
     )
     resume_json: Mapped[dict] = mapped_column(
-        JSONB,
+        JSONType,
         nullable=False
     )
     embedding: Mapped[list] = mapped_column(
@@ -93,23 +93,23 @@ class Resume(Base):
         nullable=True
     )
     matched_skills: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
+        JSONType,
         nullable=True
     )
     missing_skills: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
+        JSONType,
         nullable=True
     )
     changed_sections: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
+        JSONType,
         nullable=True
     )
     truth_guard_result: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
+        JSONType,
         nullable=True
     )
     evaluation_metadata: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
+        JSONType,
         nullable=True
     )
     approval_status: Mapped[Optional[str]] = mapped_column(

@@ -2,7 +2,7 @@ import uuid
 import datetime
 from typing import Optional
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Float, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -33,17 +33,17 @@ class ResumeTailoringJob(Base):
     )
     # QUEUED / PROCESSING / VALIDATING / READY_FOR_REVIEW / APPROVED / REJECTED / FAILED
 
-    tailoring_plan: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    tailoring_plan: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
     ats_score_before: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     ats_score_after: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     score_delta: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
-    matched_skills: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    missing_required_skills: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    missing_preferred_skills: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    matched_skills: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    missing_required_skills: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    missing_preferred_skills: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
 
-    truth_guard_summary: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    diff_summary: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    truth_guard_summary: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    diff_summary: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime.datetime] = mapped_column(
@@ -78,7 +78,7 @@ class ResumeChange(Base):
     truth_guard_status: Mapped[str] = mapped_column(String(50), default="VERIFIED", nullable=False)
     # VERIFIED / REJECTED / PENDING
 
-    evidence_ids: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    evidence_ids: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
     reasoning: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime.datetime] = mapped_column(

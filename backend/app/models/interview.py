@@ -9,7 +9,7 @@ import uuid
 import datetime
 from typing import Optional, Dict, Any, List
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Float, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -36,7 +36,7 @@ class Interview(Base):
     scheduled_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
 
     location_or_link: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    interviewer_names: Mapped[Optional[List[str]]] = mapped_column(JSONB, default=list)
+    interviewer_names: Mapped[Optional[List[str]]] = mapped_column(JSONType, default=list)
 
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
@@ -59,8 +59,8 @@ class InterviewQuestion(Base):
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
 
     # STAR technique answer format: Situation, Task, Action, Result
-    prepared_answer_star: Mapped[Optional[Dict[str, str]]] = mapped_column(JSONB, nullable=True)
-    grounded_evidence_ids: Mapped[Optional[List[str]]] = mapped_column(JSONB, default=list)
+    prepared_answer_star: Mapped[Optional[Dict[str, str]]] = mapped_column(JSONType, nullable=True)
+    grounded_evidence_ids: Mapped[Optional[List[str]]] = mapped_column(JSONType, default=list)
 
     is_truth_verified: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     has_missing_skill_warning: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -84,7 +84,7 @@ class InterviewFeedback(Base):
     rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 to 5 rating
     difficulty: Mapped[str] = mapped_column(String(50), default="MEDIUM", nullable=False)  # EASY / MEDIUM / HARD
 
-    questions_asked: Mapped[Optional[List[str]]] = mapped_column(JSONB, default=list)
+    questions_asked: Mapped[Optional[List[str]]] = mapped_column(JSONType, default=list)
     feedback_notes: Mapped[str] = mapped_column(Text, nullable=False)
     perceived_outcome: Mapped[str] = mapped_column(String(50), default="PENDING", nullable=False)  # PENDING / ADVANCED / REJECTED / OFFER
 

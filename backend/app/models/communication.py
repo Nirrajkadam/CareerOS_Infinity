@@ -2,7 +2,7 @@ import uuid
 import datetime
 from typing import Optional
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Float, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -45,10 +45,10 @@ class ApplicationCommunication(Base):
     word_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     character_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    truth_guard_result: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    evidence_ids: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    rejected_claims: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    generation_metadata: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    truth_guard_result: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    evidence_ids: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    rejected_claims: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    generation_metadata: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
@@ -96,7 +96,7 @@ class CommunicationAudit(Base):
     actor_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
     )

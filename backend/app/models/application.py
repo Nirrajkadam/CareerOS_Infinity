@@ -2,7 +2,7 @@ import uuid
 import datetime
 from typing import Optional, Dict, Any, List
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Float, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -49,14 +49,14 @@ class Application(Base):
     ats_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     priority_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
-    missing_skills: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    application_payload: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    submission_metadata: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    automation_metadata: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    approval_metadata: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    missing_skills: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    application_payload: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    submission_metadata: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    automation_metadata: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    approval_metadata: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
 
     risk_status: Mapped[str] = mapped_column(String(50), default="LOW_RISK", nullable=False)
-    risk_flags: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    risk_flags: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
@@ -86,7 +86,7 @@ class ApplicationStatusHistory(Base):
     event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     from_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     to_status: Mapped[str] = mapped_column(String(50), nullable=False)
-    metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
     automation_run_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
@@ -111,7 +111,7 @@ class AutomationRun(Base):
         String(50), default="INITIALIZED", nullable=False, index=True
     )  # INITIALIZED / RUNNING / PAUSED / WAITING_FOR_APPROVAL / COMPLETED / FAILED / LOGIN_REQUIRED / CAPTCHA_REQUIRED
     current_step: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    logs_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    logs_json: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
     started_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
     )

@@ -2,7 +2,7 @@ import uuid
 import datetime
 from typing import Optional
 from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Float, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models.types import JSONType
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -67,13 +67,13 @@ class JobMatch(Base):
     # APPLY_RECOMMENDED / STRONG_MATCH / POSSIBLE_MATCH / LOW_PRIORITY / NOT_RECOMMENDED
 
     # Evidence
-    matched_skills: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
-    missing_required_skills: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
-    missing_preferred_skills: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    matched_skills: Mapped[Optional[list]] = mapped_column(JSONType, nullable=True)
+    missing_required_skills: Mapped[Optional[list]] = mapped_column(JSONType, nullable=True)
+    missing_preferred_skills: Mapped[Optional[list]] = mapped_column(JSONType, nullable=True)
     match_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Scoring metadata for traceability
-    score_weights: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    score_weights: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
     embedding_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     # Freshness
@@ -134,4 +134,4 @@ class JobIngestionLog(Base):
     jobs_normalized: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     jobs_rejected: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     duplicates_detected: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    errors: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    errors: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
