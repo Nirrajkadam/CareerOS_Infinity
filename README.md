@@ -19,20 +19,20 @@ CareerOS Infinity is an enterprise-grade, asynchronous AI Career Intelligence Pl
 
 ```mermaid
 graph TD
-    User([User / Job Seeker]) <-->|HTTPS / WSS| WebClient[Next.js Frontend Client]
-    WebClient <-->|REST API| APIGateway[FastAPI Backend Application]
-    APIGateway <-->|Async Tasks| RedisQueue[Redis Broker & Cache]
-    
-    APIGateway <-->|SQL Transaction| PostgreSQL[(PostgreSQL + pgvector)]
-    
-    APIGateway <-->|Browser Telemetry| PlaywrightDriver[Playwright Headful Chrome Engine]
-    PlaywrightDriver <-->|Live Navigation| JobPortals[Job Portals (Naukri, Indeed, Foundit, etc.)]
-    
-    APIGateway <-->|Semantic Match| GraphEngine[Universal Career Knowledge Graph]
+    User["User / Job Seeker"] <-->|HTTPS / WSS| WebClient["Next.js Frontend Client"]
+    WebClient <-->|REST API| APIGateway["FastAPI Backend Application"]
+    APIGateway <-->|Async Tasks| RedisQueue["Redis Broker & Cache"]
+
+    APIGateway <-->|SQL Transaction| PostgreSQL[("PostgreSQL + pgvector")]
+
+    APIGateway <-->|Browser Telemetry| PlaywrightDriver["Playwright Headful Chrome Engine"]
+    PlaywrightDriver <-->|Live Navigation| JobPortals["Job Portals - Naukri, Indeed, Foundit, etc."]
+
+    APIGateway <-->|Semantic Match| GraphEngine["Universal Career Knowledge Graph"]
     GraphEngine <-->|Read / Write| PostgreSQL
-    
-    APIGateway <-->|LiteLLM Router| AIGateway[AI Gateway Provider]
-    AIGateway <-->|API Outage Fallback| ModelProviders[Google Gemini / OpenAI]
+
+    APIGateway <-->|LiteLLM Router| AIGateway["AI Gateway Provider"]
+    AIGateway <-->|API Outage Fallback| ModelProviders["Google Gemini / OpenAI"]
 ```
 
 ---
