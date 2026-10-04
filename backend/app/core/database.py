@@ -1,5 +1,5 @@
 import logging
-from typing import AsyncGenerator, Type, TypeVar, Generic, Optional, List
+from typing import Any, AsyncGenerator, Type, TypeVar, Generic, Optional, List
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy import select
@@ -68,9 +68,16 @@ class BaseRepository(Generic[T]):
         self.model = model
         self.session = session
 
-    async def get_by_id(self, entity_id: str) -> Optional[T]:
+    async def get_by_id(self, entity_id: Any) -> Optional[T]:
         logger.info(f"Querying {self.model.__name__} by id: {entity_id}")
-        query = select(self.model).filter(self.model.id == entity_id)
+        import uuid
+        target_id = entity_id
+        if isinstance(entity_id, str):
+            try:
+                target_id = uuid.UUID(entity_id)
+            except (ValueError, TypeError):
+                pass
+        query = select(self.model).filter(self.model.id == target_id)
         result = await self.session.execute(query)
         return result.scalars().first()
 

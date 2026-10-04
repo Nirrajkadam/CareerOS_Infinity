@@ -28,7 +28,7 @@ export default function ResumeManagementPage() {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('careeros_access_token') : null;
       const headers: Record<string, string> = {};
-      if (token) {
+      if (token && token !== 'null' && token !== 'undefined') {
         headers['Authorization'] = `Bearer ${token}`;
       }
       const res = await fetch(`${API_BASE_URL}/api/v1/resumes`, { headers });
@@ -58,7 +58,7 @@ export default function ResumeManagementPage() {
 
       const token = typeof window !== 'undefined' ? localStorage.getItem('careeros_access_token') : null;
       const headers: Record<string, string> = {};
-      if (token) {
+      if (token && token !== 'null' && token !== 'undefined') {
         headers['Authorization'] = `Bearer ${token}`;
       }
 

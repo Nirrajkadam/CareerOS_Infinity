@@ -834,7 +834,7 @@ export default function JobStepLandingPage() {
             <ArrowRight size={18} />
           </Link>
           <div className="text-xs text-neutral-500 mt-3 font-normal">
-            No credit card required • Ingest resumes & auto-apply across 27+ portals
+            No credit card required • AI-powered resume analysis & job matching
           </div>
         </div>
 
@@ -856,8 +856,9 @@ export default function JobStepLandingPage() {
           <div className="flex items-center gap-6 text-xs font-medium">
             <Link href="/resume" className={isDarkMode ? 'text-neutral-400 hover:text-white transition' : 'hover:text-neutral-900 transition'}>Resume Builder</Link>
             <Link href="/jobs" className={isDarkMode ? 'text-neutral-400 hover:text-white transition' : 'hover:text-neutral-900 transition'}>Job Search</Link>
-            <Link href="/applications" className={isDarkMode ? 'text-neutral-400 hover:text-white transition' : 'hover:text-neutral-900 transition'}>Auto-Apply Bot</Link>
-            <Link href="/profile" className={isDarkMode ? 'text-neutral-400 hover:text-white transition' : 'hover:text-neutral-900 transition'}>Knowledge Graph</Link>
+            <Link href="/applications" className={isDarkMode ? 'text-neutral-400 hover:text-white transition' : 'hover:text-neutral-900 transition'}>Applications</Link>
+            <Link href="/interview" className={isDarkMode ? 'text-neutral-400 hover:text-white transition' : 'hover:text-neutral-900 transition'}>Interview Prep</Link>
+            <Link href="/profile" className={isDarkMode ? 'text-neutral-400 hover:text-white transition' : 'hover:text-neutral-900 transition'}>Profile</Link>
             <Link 
               href="/jobs" 
               className={`px-3 py-1 rounded-full font-bold transition flex items-center gap-1 border ${
@@ -922,7 +923,7 @@ export default function JobStepLandingPage() {
                 href="/applications"
                 className="flex-1 py-2.5 rounded-full bg-[#eb5a28] hover:bg-[#d94e1d] text-white text-xs font-bold text-center shadow-md transition"
               >
-                1-Click Autonomous Apply
+                Track This Application
               </Link>
               <button
                 onClick={() => setActiveJobModal(null)}

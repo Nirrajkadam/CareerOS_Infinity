@@ -11,9 +11,11 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH !== undefined
   ? process.env.NEXT_PUBLIC_BASE_PATH 
   : (isProduction ? `/${repo}` : '');
 
+const isGitHubPages = !!process.env.GITHUB_ACTIONS;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  ...(isGitHubPages ? { output: 'export' } : {}),
   basePath: isProduction && basePath ? basePath : undefined,
   assetPrefix: isProduction && basePath ? basePath : undefined,
   images: {

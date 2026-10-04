@@ -16,7 +16,8 @@ import {
   UserCheck,
   KeyRound,
   Sliders,
-  LayoutDashboard
+  LayoutDashboard,
+  Mic
 } from 'lucide-react';
 
 interface JobStepNavbarProps {
@@ -52,11 +53,10 @@ export default function JobStepNavbar({ isDarkMode = true, onToggleTheme }: JobS
   const mainNavItems = [
     { name: 'Home', href: '/', icon: LayoutDashboard },
     { name: 'Resumes', href: '/resume', icon: FileText },
-    { name: 'Jobs Feed', href: '/jobs', icon: Briefcase },
+    { name: 'Jobs', href: '/jobs', icon: Briefcase },
     { name: 'Applications', href: '/applications', icon: Send },
-    { name: 'Master Profile', href: '/profile', icon: UserCheck },
-    { name: 'Vault', href: '/settings/credentials', icon: KeyRound },
-    { name: 'Integrations', href: '/settings/integrations', icon: Sliders },
+    { name: 'Interview', href: '/interview', icon: Mic },
+    { name: 'Profile', href: '/profile', icon: UserCheck },
   ];
 
   return (

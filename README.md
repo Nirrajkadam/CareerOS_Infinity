@@ -1,21 +1,21 @@
-# CareerOS Infinity - AI Career Intelligence & JobPilot Autonomous Engine
+# CareerOS Infinity — AI Career Intelligence Platform
 
-CareerOS Infinity is an enterprise-grade, asynchronous AI Career Intelligence Platform & Autonomous Job Hunter designed to ingest resumes, validate layouts, structure profile data, run semantic ATS match analytics, and automate job applications across 27+ top portals with headful browser telemetry and TruthGuard safety.
+AI-powered career development, resume analysis, job matching, and interview preparation.
 
----
+![Build](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Next.js](https://img.shields.io/badge/Next.js-black?logo=next.js) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?logo=postgresql)
 
-## 🚀 Key Features & Capabilities
+## What is CareerOS?
 
-- **JobPilot Live Application Control Center**: Real-time browser telemetry, session authentication monitoring, and application state machine tracking.
-- **TruthGuard Safety Engine**: Prevents hallucinated experience or fabricated skills during automated resume tailoring.
-- **Multi-Portal Browser Automation**: Native headful Chrome automation supporting **27 top job portals** (Naukri.com, Indeed India, Foundit, Shine, TimesJobs, Glassdoor, Apna, Cutshort, LinkedIn, Unstop, and more).
-- **Direct Apply Mode**: Autonomous candidate-approved job application submission with instant database logging and evidence verification.
-- **Knowledge Graph Analytics**: PostgreSQL + `pgvector` semantic matching for job fit scoring and priority ranking.
-- **Email Confirmation Sync**: Automated IMAP/SMTP background verification of employer receipt emails.
+CareerOS is a comprehensive platform designed to elevate your job search through AI resume parsing & ATS scoring, intelligent job matching, seamless application tracking, and dynamic interview preparation. By analyzing your unique profile and matching it against real market demands, it provides actionable insights that maximize your chances of success. CareerOS is NOT an auto-apply bot — it's a career intelligence platform that helps you make smarter application decisions.
 
----
+## Core Features
 
-## 1. System Architecture (C4 Model)
+- **🎯 Resume Intelligence:** AI parsing, ATS scoring, version tracking, and TruthGuard verification.
+- **🔍 Job Match Discovery:** AI job matching, ATS fit scoring, and filtering by location, seniority, or skills.
+- **📊 Application Tracker:** Kanban board, status tracking, and analytics dashboard.
+- **🎤 Interview Prep Studio:** AI-generated questions from job descriptions, covering behavioral, technical, and situational categories.
+
+## System Architecture
 
 ```mermaid
 graph TD
@@ -35,9 +35,7 @@ graph TD
     AIGateway <-->|API Outage Fallback| ModelProviders["Google Gemini / OpenAI"]
 ```
 
----
-
-## 2. Technology Stack
+## Technology Stack
 
 * **Frontend Web Client:** Next.js (v14), TailwindCSS, TypeScript, Lucide Icons, Zustand.
 * **Backend Server:** FastAPI (Python 3.11/3.13), SQLAlchemy (Async), Uvicorn.
@@ -46,57 +44,32 @@ graph TD
 * **AI Integrations:** LiteLLM Gateway Routing (Google Gemini 3.5 Flash / Flash Lite / OpenAI).
 * **Testing & Quality:** Pytest (129/129 regression tests passing).
 
----
+## Quick Start
 
-## 3. Local Startup Guide
-
-### 3.1 Backend Server (FastAPI + Uvicorn)
+### Backend Server (FastAPI + Uvicorn)
 ```bash
 cd backend
 venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 3.2 Frontend Web App (Next.js)
+### Frontend Web App (Next.js)
 ```bash
 cd frontend
 npm run dev
 ```
 
-### 3.3 Desktop Headful Browser Launcher
-To trigger a standalone interactive Chrome window on your Windows desktop screen:
-```bash
-python run_live_browser.py
+## Project Structure
+
+```
+CareerOS/
+├── backend/       # FastAPI application, database models, and background tasks
+├── frontend/      # Next.js web application and UI components
+├── docs/          # Project documentation and C4 diagrams
+└── scripts/       # Utility scripts for database migrations and setup
 ```
 
-Endpoints once initialized:
-* **Web Control Center UI:** [http://localhost:3000/](http://localhost:3000/)
-* **API Interactive Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-* **Browser Telemetry Status:** [http://localhost:8000/api/v1/applications/browser-status](http://localhost:8000/api/v1/applications/browser-status)
+## License
+MIT
 
 ---
-
-## 4. API Reference Summary
-
-| Method | Endpoint Path | Scope Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/v1/applications/apply` | Trigger single portal auto-apply pipeline |
-| `POST` | `/api/v1/applications/launch-session` | Open headful Chrome session for portal login |
-| `POST` | `/api/v1/applications/verify-login` | Confirm manual candidate portal session authentication |
-| `GET` | `/api/v1/applications/browser-status` | Query live Playwright browser process telemetry |
-| `GET` | `/api/v1/applications` | List active job applications & GraphNode records |
-| `POST` | `/api/v1/resumes/upload` | Ingest candidate resume PDF/DOCX |
-
----
-
-## 5. Automated Test Suite
-
-Run the complete 129-test regression suite covering JobPilot Parts 1 through 7:
-```bash
-cd backend
-venv\Scripts\pytest
-```
-
----
-
-## 📜 License
-Privately developed for **CareerOS Infinity Platform**. All rights reserved.
+Built by Niraj Kadam

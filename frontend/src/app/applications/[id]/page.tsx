@@ -6,6 +6,9 @@ export function generateStaticParams() {
     { id: '1' },
     { id: '2' },
     { id: 'demo' },
+    { id: 'app-101' },
+    { id: 'app-102' },
+    { id: 'app-103' },
   ];
 }
 
